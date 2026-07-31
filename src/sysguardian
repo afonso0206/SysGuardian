@@ -1,0 +1,1250 @@
+#!/bin/bash
+#===============================================================================
+# SysGuardian
+# Diagnóstico Profissional para Linux
+#
+# Versão : 7.0.0-alpha2
+# Licença: MIT
+#
+# Compatível:
+#   • Ubuntu 22.04 LTS
+#   • Ubuntu 24.04 LTS
+#   • Kernel Linux 5.x e 6.x
+#===============================================================================
+
+set -euo pipefail
+shopt -s nullglob
+
+#===============================================================================
+# Estrutura da aplicação
+#===============================================================================
+
+readonly SCRIPT_NAME="SysGuardian"
+readonly SCRIPT_VERSION="7.0.0-alpha2"
+
+readonly CONFIG_FILE="/etc/sysguardian/sysguardian.conf"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo
+    echo "ERRO: Arquivo de configuração não encontrado."
+    echo
+    echo "Arquivo esperado:"
+    echo "    $CONFIG_FILE"
+    echo
+    echo "Execute primeiro:"
+    echo "    sudo ./install.sh"
+    echo
+    exit 1
+fi
+
+# shellcheck disable=SC1091
+source "$CONFIG_FILE"
+
+# Verificar variáveis obrigatórias do arquivo de configuração
+: "${DATA_DIR:?DATA_DIR não definido em $CONFIG_FILE}"
+: "${REPORT_DIR:?REPORT_DIR não definido em $CONFIG_FILE}"
+
+#===============================================================================
+# 1. CONFIGURAÇÕES GLOBAIS E VARIÁVEIS
+#===============================================================================
+
+readonly TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+readonly DATE_HUMAN="$(date '+%d/%m/%Y %H:%M:%S')"
+readonly HOSTNAME="$(hostname -s)"
+
+readonly APP_DIR="${DATA_DIR}"
+readonly MODULE_DIR="${DATA_DIR}/modules"
+readonly LIB_DIR="${DATA_DIR}/lib"
+
+readonly TMP_DIR="/tmp/sysguardian"
+
+readonly LOG_FILE="${REPORT_DIR}/diagnostic_${TIMESTAMP}.log"
+readonly TXT_FILE="${REPORT_DIR}/report_${TIMESTAMP}.txt"
+readonly HTML_FILE="${REPORT_DIR}/report_${TIMESTAMP}.html"
+readonly PDF_FILE="${REPORT_DIR}/report_${TIMESTAMP}.pdf"
+readonly HTML_BUF="${TMP_DIR}/health_html_buf_${TIMESTAMP}.tmp"
+
+readonly C_RED='\033[0;31m'
+readonly C_GREEN='\033[0;32m'
+readonly C_YELLOW='\033[1;33m'
+readonly C_BLUE='\033[0;34m'
+readonly C_CYAN='\033[0;36m'
+readonly C_BOLD='\033[1m'
+readonly C_RESET='\033[0m'
+
+declare -A CMD_CACHE
+declare -A CATEGORY_SCORES
+declare -a REPORT_DATA
+
+for cat in Hardware CPU Memory Disks SMART Network System Security Backup Docker Apache PHP MySQL LVM TRIM Logs; do
+    CATEGORY_SCORES[$cat]=100
+done
+
+#===============================================================================
+# Inicialização da aplicação
+#===============================================================================
+
+initialize() {
+
+    mkdir -p "$REPORT_DIR" || {
+        echo "Erro ao criar $REPORT_DIR"
+        exit 1
+    }
+
+    mkdir -p "$TMP_DIR" || {
+        echo "Erro ao criar $TMP_DIR"
+        exit 1
+    }
+
+    [[ -w "$REPORT_DIR" ]] || {
+        echo "Sem permissão de escrita em $REPORT_DIR"
+        exit 1
+    }
+
+    # Remove arquivos temporários antigos
+    rm -f "${TMP_DIR}"/*.tmp 2>/dev/null || true
+
+}
+
+show_banner() {
+
+    echo
+    echo "============================================================"
+    echo " ${SCRIPT_NAME} ${SCRIPT_VERSION}"
+    echo " Host : ${HOSTNAME}"
+    echo " Data : ${DATE_HUMAN}"
+    echo "============================================================"
+    echo
+
+}
+#===============================================================================
+# 2. FUNÇÕES UTILITÁRIAS E DE SEGURANÇA (MATEMÁTICA E CACHE)
+#===============================================================================
+
+safe_int() {
+    local val="${1:-0}"
+    val="${val//[^0-9-]/}"
+    echo "${val:-0}"
+}
+
+safe_float() {
+    local val="${1:-0}"
+    val=$(echo "$val" | grep -oE '^-?[0-9]+\.?[0-9]*' | head -1)
+    echo "${val:-0}"
+}
+
+safe_compare() {
+    local a=$(safe_float "$1")
+    local op="${2:-==}"
+    local b=$(safe_float "$3")
+    
+    awk -v val1="$a" -v op="$op" -v val2="$b" 'BEGIN {
+        if (op == "==") exit (val1 == val2) ? 0 : 1
+        else if (op == "!=") exit (val1 != val2) ? 0 : 1
+        else if (op == ">") exit (val1 > val2) ? 0 : 1
+        else if (op == ">=") exit (val1 >= val2) ? 0 : 1
+        else if (op == "<") exit (val1 < val2) ? 0 : 1
+        else if (op == "<=") exit (val1 <= val2) ? 0 : 1
+        else exit 1
+    }'
+}
+
+run_cmd() {
+    local cmd_str="$*"
+    local cmd_hash
+    cmd_hash=$(echo "$cmd_str" | md5sum | cut -d' ' -f1)
+    
+    if [[ -z "${CMD_CACHE[$cmd_hash]:-}" ]]; then
+        CMD_CACHE[$cmd_hash]=$(eval "$cmd_str" 2>/dev/null || echo "")
+    fi
+    echo "${CMD_CACHE[$cmd_hash]}"
+}
+
+score_sub() {
+    local cat="$1"
+    local points="$2"
+    local current="${CATEGORY_SCORES[$cat]:-100}"
+    local new_score=$((current - points))
+    CATEGORY_SCORES[$cat]=$(( new_score < 0 ? 0 : new_score ))
+}
+
+log_entry() {
+    local cat="$1"
+    local level="$2"
+    local msg="$3"
+    
+    case "$level" in
+        OK)     echo -e "${C_GREEN}[OK]${C_RESET} [$cat] $msg" ;;
+        WARN)   echo -e "${C_YELLOW}[AVISO]${C_RESET} [$cat] $msg" ;;
+        ERROR)  echo -e "${C_RED}[ERRO]${C_RESET} [$cat] $msg" ;;
+        INFO)   echo -e "${C_BLUE}[INFO]${C_RESET} [$cat] $msg" ;;
+        HEADER) echo -e "\n${C_CYAN}${C_BOLD}=== $msg ===${C_RESET}" ;;
+        SUB)    echo -e "${C_CYAN}  -- $msg --${C_RESET}" ;;
+    esac
+
+    REPORT_DATA+=("${cat}|${level}|${msg}")
+}
+
+get_physical_disks() {
+    run_cmd lsblk -d -n -o NAME,SIZE,MODEL,ROTA,TRAN -e 7,1,254 2>/dev/null
+}
+
+get_physical_disk_names() {
+    run_cmd lsblk -d -n -o NAME -e 7,1,254 2>/dev/null
+}
+
+classify_disk() {
+    local dev="$1"
+    local name="${dev#/dev/}"
+    local rota=$(cat "/sys/block/$name/queue/rotational" 2>/dev/null || echo "2")
+    local tran=$(run_cmd lsblk -dno TRAN "$dev" 2>/dev/null | tr '[:upper:]' '[:lower:]' | xargs)
+    local model=$(run_cmd lsblk -dno MODEL "$dev" 2>/dev/null | tr '[:upper:]' '[:lower:]' | xargs)
+
+    if [[ "$name" == nvme* ]] || [[ "$tran" == "nvme" ]]; then
+        echo "NVMe SSD"
+    elif [[ "$rota" == "0" ]]; then
+        echo "SATA SSD"
+    elif [[ "$rota" == "1" ]]; then
+        echo "HDD"
+    elif [[ "$tran" == "usb" ]]; then
+        echo "USB Storage"
+    elif [[ "$model" == *"virtio"* ]] || [[ "$tran" == "virtio" ]]; then
+        echo "VirtIO Disk"
+    elif [[ "$model" == *"raid"* ]] || [[ "$tran" == "raid" ]] || [[ "$model" == *"logical"* ]]; then
+        echo "RAID / Virtual"
+    else
+        echo "Storage Device"
+    fi
+}
+
+#===============================================================================
+# 3. MÓDULOS DE DIAGNÓSTICO
+#===============================================================================
+
+check_system_and_boot() {
+    log_entry "System" "HEADER" "Informações do Sistema e Boot"
+    
+    local os_info=$(run_cmd cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'"' -f2)
+    local kernel=$(run_cmd uname -r)
+    local uptime_str=$(run_cmd uptime -p 2>/dev/null | sed 's/up //' || run_cmd uptime | awk -F'up ' '{print $2}' | awk -F',' '{print $1}')
+    
+    log_entry "System" "INFO" "SO: $os_info"
+    log_entry "System" "INFO" "Kernel: $kernel"
+    log_entry "System" "INFO" "Uptime: $uptime_str"
+
+    if command -v systemd-analyze &>/dev/null; then
+        local boot_time_raw=$(run_cmd systemd-analyze 2>/dev/null | grep -oE 'startup in [0-9]+(\.[0-9]+)?(ms|s|min|h)' | head -1)
+        log_entry "System" "INFO" "Tempo de Boot: ${boot_time_raw:-Não disponível}"
+        
+        log_entry "System" "SUB" "5 Serviços mais lentos no boot"
+        run_cmd systemd-analyze blame 2>/dev/null | head -5 | while read -r line; do
+            [[ -n "$line" ]] && log_entry "System" "INFO" "  $line"
+        done
+        
+        log_entry "System" "SUB" "Cadeia crítica do boot"
+        run_cmd systemd-analyze critical-chain 2>/dev/null | head -8 | while read -r line; do
+            [[ -n "$line" ]] && log_entry "System" "INFO" "  $line"
+        done
+    fi
+}
+
+check_cpu() {
+    log_entry "CPU" "HEADER" "Processador (CPU)"
+    
+    # CORREÇÃO: Parser do modelo da CPU usando awk -F': ' para extração precisa
+    local model=""
+    if [[ -f /proc/cpuinfo ]]; then
+        model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | awk -F': ' '{print $2}' | xargs)
+    fi
+    
+    # Fallback para lscpu se /proc/cpuinfo falhar
+    if [[ -z "$model" ]] && command -v lscpu &>/dev/null; then
+        model=$(lscpu 2>/dev/null | awk -F': ' '/Model name/{print $2}' | xargs)
+    fi
+    
+    # Último fallback
+    if [[ -z "$model" ]]; then
+        model="Não detectado"
+    fi
+    
+    local cores=$(run_cmd nproc)
+    local load=$(run_cmd uptime | awk -F'load average:' '{print $2}' | xargs)
+    
+    log_entry "CPU" "INFO" "Modelo: $model"
+    log_entry "CPU" "INFO" "Núcleos: $cores"
+    log_entry "CPU" "INFO" "Carga: $load"
+
+    if command -v sensors &>/dev/null; then
+        local temp_data=$(run_cmd sensors 2>/dev/null)
+        local max_temp=0
+        local temp_found=0
+        
+        while IFS= read -r line; do
+            if [[ "$line" =~ (Core|Package|Tctl|Tdie).*:\ +([0-9]+\.?[0-9]*)°C ]]; then
+                local sensor_name="${BASH_REMATCH[1]}"
+                local temp_val="${BASH_REMATCH[2]}"
+                log_entry "CPU" "INFO" "Temp $sensor_name: ${temp_val}°C"
+                temp_found=1
+                
+                if safe_compare "$temp_val" ">" "$max_temp"; then
+                    max_temp="$temp_val"
+                fi
+            fi
+        done <<< "$temp_data"
+
+        if [[ "$temp_found" -eq 1 ]]; then
+            if safe_compare "$max_temp" ">=" "85"; then
+                log_entry "CPU" "ERROR" "Temperatura crítica: ${max_temp}°C"
+                score_sub "CPU" 15
+            elif safe_compare "$max_temp" ">=" "75"; then
+                log_entry "CPU" "WARN" "Temperatura elevada: ${max_temp}°C"
+                score_sub "CPU" 5
+            else
+                log_entry "CPU" "OK" "Temperaturas dentro da faixa normal (${max_temp}°C)"
+            fi
+        else
+            log_entry "CPU" "INFO" "Nenhuma temperatura de CPU detectada pelos sensores"
+        fi
+    else
+        log_entry "CPU" "INFO" "Temperatura não verificada (lm-sensors não instalado)"
+    fi
+}
+
+check_memory() {
+    log_entry "Memory" "HEADER" "Memória RAM e Swap"
+    
+    local mem_info=$(run_cmd free -m)
+    local total=$(echo "$mem_info" | awk '/^Mem:/{print $2}')
+    local used=$(echo "$mem_info" | awk '/^Mem:/{print $3}')
+    local avail=$(echo "$mem_info" | awk '/^Mem:/{print $7}')
+    local swap_total=$(echo "$mem_info" | awk '/^Swap:/{print $2}')
+    local swap_used=$(echo "$mem_info" | awk '/^Swap:/{print $3}')
+
+    local mem_pct=0
+    if [[ "$total" -gt 0 ]]; then
+        mem_pct=$(awk "BEGIN {printf \"%.1f\", ($used/$total)*100}")
+    fi
+
+    log_entry "Memory" "INFO" "Total: ${total}MB | Usada: ${used}MB (${mem_pct}%) | Disponível: ${avail}MB"
+
+    if safe_compare "$mem_pct" ">=" "95"; then
+        log_entry "Memory" "ERROR" "Uso de memória crítico: ${mem_pct}%"
+        score_sub "Memory" 20
+    elif safe_compare "$mem_pct" ">=" "85"; then
+        log_entry "Memory" "WARN" "Uso de memória elevado: ${mem_pct}%"
+        score_sub "Memory" 10
+    else
+        log_entry "Memory" "OK" "Uso de memória saudável (${mem_pct}%)"
+    fi
+
+    if [[ "$swap_total" -gt 0 ]]; then
+        local swap_pct=$(awk "BEGIN {printf \"%.1f\", ($swap_used/$swap_total)*100}")
+        log_entry "Memory" "INFO" "Swap: ${swap_used}MB / ${swap_total}MB (${swap_pct}%)"
+        if safe_compare "$swap_pct" ">=" "50"; then
+            log_entry "Memory" "WARN" "Uso de swap elevado: ${swap_pct}%"
+            score_sub "Memory" 5
+        else
+            log_entry "Memory" "OK" "Uso de swap normal (${swap_pct}%)"
+        fi
+    fi
+
+    local oom_count=$(run_cmd dmesg 2>/dev/null | grep -ci 'out of memory' || echo "0")
+    if [[ "$(safe_int "$oom_count")" -gt 0 ]]; then
+        log_entry "Memory" "ERROR" "Detectados $oom_count eventos OOM (Out of Memory) no kernel"
+        score_sub "Memory" 15
+    fi
+}
+
+check_disks_and_lvm() {
+    log_entry "Disks" "HEADER" "Armazenamento e LVM"
+    
+    log_entry "Disks" "SUB" "Discos Físicos (excluindo loop/ram/device-mapper)"
+    local disks=$(get_physical_disks)
+    while read -r name size model rota tran; do
+        [[ -z "$name" ]] && continue
+        local dev="/dev/$name"
+        local dtype=$(classify_disk "$dev")
+        log_entry "Disks" "INFO" "$dev ($dtype) - $size - $model"
+    done <<< "$disks"
+
+    log_entry "Disks" "SUB" "Uso de Partições"
+    local df_output=$(run_cmd df -hT --output=source,fstype,size,used,avail,pcent,target 2>/dev/null | grep '^/dev/')
+    if [[ -n "$df_output" ]]; then
+        echo "$df_output" | while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            local src fstype size used avail pcent target
+            read -r src fstype size used avail pcent target <<< "$line"
+            local pct_num=$(safe_int "${pcent%\%}")
+            log_entry "Disks" "INFO" "$target ($fstype): $used/$size ($pcent) livre: $avail"
+            if [[ "$pct_num" -ge 95 ]]; then
+                log_entry "Disks" "ERROR" "Partição $target quase cheia ($pcent)"
+                score_sub "Disks" 10
+            elif [[ "$pct_num" -ge 85 ]]; then
+                log_entry "Disks" "WARN" "Partição $target com uso elevado ($pcent)"
+                score_sub "Disks" 5
+            fi
+        done
+    fi
+
+    # CORREÇÃO: LVM com tratamento robusto usando --noheadings --nosuffix --units g
+    if command -v vgs &>/dev/null; then
+        log_entry "LVM" "SUB" "Volume Groups (LVM)"
+        local vgs_output=$(run_cmd vgs --noheadings --nosuffix --units g -o vg_name,vg_size,vg_free,pv_count,lv_count 2>/dev/null)
+        if [[ -n "$vgs_output" ]]; then
+            echo "$vgs_output" | while read -r vg size free pv lv; do
+                [[ -z "$vg" ]] && continue
+                # Sanitizar valores
+                vg=$(echo "$vg" | xargs)
+                size=$(echo "$size" | xargs)
+                free=$(echo "$free" | xargs)
+                pv=$(echo "$pv" | xargs)
+                lv=$(echo "$lv" | xargs)
+                
+                local free_num=$(safe_float "$free")
+                log_entry "LVM" "INFO" "VG: $vg | Size: ${size}G | Free: ${free}G | PVs: $pv | LVs: $lv"
+                
+                # Verificar se há thin pools antes de alertar sobre free baixo
+                local is_thin=0
+                if command -v lvs &>/dev/null; then
+                    is_thin=$(run_cmd lvs --noheadings -o lv_attr "$vg" 2>/dev/null | grep -c '^t' || echo "0")
+                fi
+                
+                if safe_compare "$free_num" "<" "1.0" && [[ "$is_thin" -eq 0 ]]; then
+                    log_entry "LVM" "WARN" "VG $vg com espaço livre crítico (${free}G) e sem Thin Pools"
+                    score_sub "LVM" 10
+                fi
+            done
+        fi
+        
+        log_entry "LVM" "SUB" "Logical Volumes (Detalhes)"
+        local lvs_output=$(run_cmd lvs --noheadings --nosuffix --units g -o lv_name,vg_name,lv_size,data_percent,metadata_percent,lv_path 2>/dev/null)
+        if [[ -n "$lvs_output" ]]; then
+            echo "$lvs_output" | while read -r lv vg size data_pct meta_pct path; do
+                [[ -z "$lv" ]] && continue
+                # Sanitizar valores
+                lv=$(echo "$lv" | xargs)
+                vg=$(echo "$vg" | xargs)
+                size=$(echo "$size" | xargs)
+                data_pct=$(echo "$data_pct" | xargs)
+                meta_pct=$(echo "$meta_pct" | xargs)
+                path=$(echo "$path" | xargs)
+                
+                log_entry "LVM" "INFO" "LV: $lv ($vg) | Size: ${size}G | Data: ${data_pct:-N/A}% | Meta: ${meta_pct:-N/A}% | Path: $path"
+                
+                # Verificar uso de dados apenas se data_pct for numérico
+                if [[ -n "$data_pct" && "$data_pct" != "" ]]; then
+                    local d_pct=$(safe_int "${data_pct%\%}")
+                    if [[ "$d_pct" -ge 90 ]]; then
+                        log_entry "LVM" "ERROR" "LV $lv com uso de dados crítico: ${data_pct}%"
+                        score_sub "LVM" 10
+                    elif [[ "$d_pct" -ge 80 ]]; then
+                        log_entry "LVM" "WARN" "LV $lv com uso de dados elevado: ${data_pct}%"
+                        score_sub "LVM" 5
+                    fi
+                fi
+            done
+        fi
+    fi
+}
+
+check_smart() {
+    log_entry "SMART" "HEADER" "Análise SMART"
+    
+    if ! command -v smartctl &>/dev/null; then
+        log_entry "SMART" "INFO" "SMART não verificado (smartmontools não instalado)"
+        return
+    fi
+
+    local disks=$(get_physical_disk_names)
+    for name in $disks; do
+        local dev="/dev/$name"
+        local dtype=$(classify_disk "$dev")
+        log_entry "SMART" "SUB" "Disco: $dev ($dtype)"
+        
+        local smart_out=$(run_cmd sudo smartctl -a "$dev" 2>/dev/null)
+        [[ -z "$smart_out" ]] && { log_entry "SMART" "WARN" "Falha ao ler SMART (permissão ou não suportado)"; continue; }
+
+        if [[ "$dtype" == "NVMe SSD" ]]; then
+            local crit_warn=$(echo "$smart_out" | grep -i 'Critical Warning' | awk '{print $NF}')
+            local pct_used=$(echo "$smart_out" | grep -i 'Percentage Used' | grep -oE '[0-9]+')
+            local avail_spare=$(echo "$smart_out" | grep -i 'Available Spare' | grep -oE '[0-9]+')
+            local media_err=$(echo "$smart_out" | grep -i 'Media and Data Integrity Errors' | awk '{print $NF}')
+            local du_read=$(echo "$smart_out" | grep -i 'Data Units Read' | awk '{print $NF}')
+            local du_written=$(echo "$smart_out" | grep -i 'Data Units Written' | awk '{print $NF}')
+            local unsafe_shutdowns=$(echo "$smart_out" | grep -i 'Unsafe Shutdowns' | awk '{print $NF}')
+            local temp=$(echo "$smart_out" | grep -i 'Temperature' | grep -oE '[0-9]+' | head -1)
+
+            [[ "$crit_warn" != "0" && -n "$crit_warn" ]] && { log_entry "SMART" "ERROR" "Critical Warning: $crit_warn"; score_sub "SMART" 20; }
+            [[ -n "$pct_used" ]] && {
+                log_entry "SMART" "INFO" "Percentage Used: ${pct_used}%"
+                safe_compare "$pct_used" ">=" "90" && { log_entry "SMART" "ERROR" "Desgaste avançado do NVMe"; score_sub "SMART" 15; }
+            }
+            [[ -n "$avail_spare" ]] && log_entry "SMART" "INFO" "Available Spare: ${avail_spare}%"
+            [[ -n "$media_err" && "$(safe_int "$media_err")" -gt 0 ]] && { log_entry "SMART" "ERROR" "Media Errors: $media_err"; score_sub "SMART" 10; }
+            [[ -n "$du_read" ]] && log_entry "SMART" "INFO" "Data Units Read: $du_read"
+            [[ -n "$du_written" ]] && log_entry "SMART" "INFO" "Data Units Written: $du_written"
+            [[ -n "$unsafe_shutdowns" && "$(safe_int "$unsafe_shutdowns")" -gt 10 ]] && log_entry "SMART" "WARN" "Unsafe Shutdowns elevados: $unsafe_shutdowns"
+            [[ -n "$temp" ]] && log_entry "SMART" "INFO" "Temperatura: ${temp}°C"
+        else
+            local health=$(echo "$smart_out" | grep -i 'SMART overall-health' | grep -i 'PASSED\|OK')
+            local realloc=$(echo "$smart_out" | grep -i 'Reallocated_Sector_Ct' | awk '{print $NF}')
+            local pending=$(echo "$smart_out" | grep -i 'Current_Pending_Sector' | awk '{print $NF}')
+            local offline=$(echo "$smart_out" | grep -i 'Offline_Uncorrectable' | awk '{print $NF}')
+            local crc=$(echo "$smart_out" | grep -i 'UDMA_CRC_Error_Count' | awk '{print $NF}')
+            local poh=$(echo "$smart_out" | grep -i 'Power_On_Hours' | awk '{print $NF}')
+            local pcycles=$(echo "$smart_out" | grep -i 'Power_Cycle_Count' | awk '{print $NF}')
+            local temp=$(echo "$smart_out" | grep -i 'Temperature_Celsius' | awk '{print $10}')
+
+            [[ -n "$health" ]] && log_entry "SMART" "OK" "Health: PASSED" || { log_entry "SMART" "ERROR" "Health: FAILED"; score_sub "SMART" 30; }
+            [[ "$(safe_int "$realloc")" -gt 0 ]] && { log_entry "SMART" "WARN" "Setores realocados: $realloc"; score_sub "SMART" 10; }
+            [[ "$(safe_int "$pending")" -gt 0 ]] && { log_entry "SMART" "ERROR" "Setores pendentes: $pending"; score_sub "SMART" 15; }
+            [[ "$(safe_int "$offline")" -gt 0 ]] && { log_entry "SMART" "ERROR" "Offline uncorrectable: $offline"; score_sub "SMART" 10; }
+            [[ "$(safe_int "$crc")" -gt 0 ]] && { log_entry "SMART" "WARN" "CRC Errors: $crc (verifique cabo SATA)"; score_sub "SMART" 5; }
+            [[ -n "$poh" ]] && log_entry "SMART" "INFO" "Power On Hours: $poh"
+            [[ -n "$pcycles" ]] && log_entry "SMART" "INFO" "Power Cycles: $pcycles"
+            [[ -n "$temp" ]] && log_entry "SMART" "INFO" "Temperatura: ${temp}°C"
+        fi
+    done
+}
+
+check_network() {
+    log_entry "Network" "HEADER" "Rede e Conectividade"
+    
+    local ifaces=$(run_cmd ip -o link show 2>/dev/null | awk -F': ' '{print $2}' | grep -E '^(eno|enp|eth|wlan|wlp)' | grep -v '@')
+    local count=$(echo "$ifaces" | grep -c . || echo "0")
+    
+    log_entry "Network" "INFO" "Interfaces físicas detectadas: $count"
+    [[ "$count" -lt 2 ]] && log_entry "Network" "WARN" "Menos de 2 interfaces físicas detectadas"
+
+    for iface in $ifaces; do
+        local state=$(cat "/sys/class/net/$iface/operstate" 2>/dev/null || echo "unknown")
+        local ip4=$(run_cmd ip -4 addr show "$iface" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+        local speed=$(cat "/sys/class/net/$iface/speed" 2>/dev/null || echo "N/A")
+        local rx_err=$(cat "/sys/class/net/$iface/statistics/rx_errors" 2>/dev/null || echo "0")
+        local tx_err=$(cat "/sys/class/net/$iface/statistics/tx_errors" 2>/dev/null || echo "0")
+        local rx_drop=$(cat "/sys/class/net/$iface/statistics/rx_dropped" 2>/dev/null || echo "0")
+        local tx_drop=$(cat "/sys/class/net/$iface/statistics/tx_dropped" 2>/dev/null || echo "0")
+        
+        log_entry "Network" "INFO" "$iface: state=$state speed=${speed}Mbps ip=$ip4 | Erros: RX=$rx_err TX=$tx_err | Drops: RX=$rx_drop TX=$tx_drop"
+        if [[ "$(safe_int "$rx_err")" -gt 0 || "$(safe_int "$tx_err")" -gt 0 ]]; then
+            log_entry "Network" "WARN" "Erros de hardware na interface $iface"
+            score_sub "Network" 5
+        fi
+    done
+
+    local gateway=$(run_cmd ip route 2>/dev/null | awk '/default/{print $3; exit}')
+    if [[ -n "$gateway" ]] && ping -c 1 -W 2 "$gateway" &>/dev/null; then
+        log_entry "Network" "OK" "Gateway $gateway acessível"
+    else
+        log_entry "Network" "ERROR" "Gateway inacessível"
+        score_sub "Network" 10
+    fi
+
+    if ping -c 1 -W 3 8.8.8.8 &>/dev/null; then
+        log_entry "Network" "OK" "Internet OK"
+    else
+        log_entry "Network" "ERROR" "Sem internet"
+        score_sub "Network" 10
+    fi
+
+    if host google.com &>/dev/null || nslookup google.com &>/dev/null; then
+        log_entry "Network" "OK" "Resolução DNS funcionando"
+    else
+        log_entry "Network" "ERROR" "Falha na resolução DNS"
+        score_sub "Network" 10
+    fi
+}
+
+check_services_and_security() {
+    log_entry "Security" "HEADER" "Serviços e Segurança"
+    
+    local ssh_active=0
+    local ssh_method=""
+    
+    for svc in ssh sshd; do
+        if run_cmd systemctl is-active --quiet "$svc" 2>/dev/null; then
+            ssh_active=1
+            ssh_method="service ($svc)"
+            break
+        fi
+    done
+    
+    if [[ "$ssh_active" -eq 0 ]]; then
+        if run_cmd systemctl is-active --quiet ssh.socket 2>/dev/null; then
+            ssh_active=1
+            ssh_method="socket (ssh.socket)"
+        fi
+    fi
+    
+    if [[ "$ssh_active" -eq 0 ]]; then
+        local port_22=$(run_cmd ss -tlnp 2>/dev/null | grep -cE ':22\s|:22$' || echo "0")
+        if [[ "$(safe_int "$port_22")" -gt 0 ]]; then
+            ssh_active=1
+            ssh_method="porta 22 ativa"
+        fi
+    fi
+    
+    if [[ "$ssh_active" -eq 1 ]]; then
+        log_entry "Security" "OK" "SSH ativo e escutando (detectado via $ssh_method)"
+    else
+        log_entry "Security" "WARN" "SSH não detectado como ativo"
+    fi
+
+    if command -v ufw &>/dev/null; then
+        local ufw_status=$(run_cmd sudo ufw status 2>/dev/null | head -1)
+        if echo "$ufw_status" | grep -qi 'active'; then
+            log_entry "Security" "OK" "UFW Ativo"
+        else
+            log_entry "Security" "WARN" "UFW Inativo"
+            score_sub "Security" 10
+        fi
+    fi
+
+    run_cmd systemctl is-active --quiet fail2ban && log_entry "Security" "OK" "Fail2ban Ativo" || log_entry "Security" "INFO" "Fail2ban Inativo/Não instalado"
+    run_cmd aa-status &>/dev/null && log_entry "Security" "OK" "AppArmor Ativo" || log_entry "Security" "INFO" "AppArmor Inativo"
+    run_cmd systemctl is-active --quiet auditd && log_entry "Security" "OK" "Auditd Ativo" || log_entry "Security" "INFO" "Auditd Inativo/Não instalado"
+
+    local sim_upgrade=$(run_cmd apt-get -s upgrade 2>/dev/null | grep -E '^Inst |^Conf ' || true)
+    local upd_count=$(echo "$sim_upgrade" | grep -c '^Inst' || echo "0")
+    local sec_count=$(echo "$sim_upgrade" | grep -ci 'security' || echo "0")
+    local kern_count=$(echo "$sim_upgrade" | grep -ciE 'linux-image|linux-headers' || echo "0")
+    
+    log_entry "Security" "INFO" "Atualizações pendentes: $upd_count (Segurança: $sec_count, Kernel: $kern_count)"
+    if [[ "$(safe_int "$sec_count")" -gt 0 ]]; then
+        log_entry "Security" "WARN" "Existem atualizações de segurança pendentes"
+        score_sub "Security" 5
+    fi
+
+    log_entry "Security" "SUB" "Verificações de Segurança do Sistema"
+    local suid_count=$(run_cmd find /usr /etc -perm -4000 -type f 2>/dev/null | wc -l || echo "0")
+    log_entry "Security" "INFO" "Arquivos SUID em /usr e /etc: $suid_count"
+    
+    local ww_count=$(run_cmd find /usr /etc -perm -0002 -type f 2>/dev/null | wc -l || echo "0")
+    if [[ "$(safe_int "$ww_count")" -gt 0 ]]; then
+        log_entry "Security" "WARN" "Arquivos com permissão World Writable em /usr ou /etc: $ww_count"
+        score_sub "Security" 5
+    fi
+
+    local sudo_users=$(run_cmd getent group sudo | cut -d: -f4)
+    log_entry "Security" "INFO" "Usuários no grupo sudo: ${sudo_users:-Nenhum}"
+
+    local failed_logins=$(run_cmd lastb 2>/dev/null | wc -l || echo "0")
+    failed_logins=$((failed_logins > 2 ? failed_logins - 2 : 0))
+    log_entry "Security" "INFO" "Tentativas de login falhas (lastb): $failed_logins"
+}
+
+check_backup() {
+    log_entry "Backup" "HEADER" "Rotinas de Backup"
+    
+    local backup_mount="/backup"
+    if ! mountpoint -q "$backup_mount" 2>/dev/null; then
+        backup_mount=$(run_cmd df -h 2>/dev/null | awk '/\/dev\/sd[a-z]/ && $6 != "/" {print $6; exit}')
+    fi
+
+    if [[ -n "$backup_mount" && -d "$backup_mount" ]]; then
+        log_entry "Backup" "INFO" "Diretório de backup identificado: $backup_mount"
+        local recent=$(run_cmd find "$backup_mount" -type f \( -name "*.tar*" -o -name "*.zip" -o -name "*.bak" -o -name "*.sql" -o -name "*.borg" -o -name "*.restic" \) -mtime -7 2>/dev/null | wc -l || echo "0")
+        if [[ "$(safe_int "$recent")" -gt 0 ]]; then
+            log_entry "Backup" "OK" "Encontrados $recent arquivos de backup nos últimos 7 dias"
+        else
+            log_entry "Backup" "WARN" "Nenhum backup recente encontrado"
+            score_sub "Backup" 15
+        fi
+    else
+        log_entry "Backup" "WARN" "Ponto de montagem de backup não identificado"
+        score_sub "Backup" 10
+    fi
+
+    local cron_jobs=$(run_cmd sudo crontab -l 2>/dev/null | grep -ciE 'backup|rsync|borg|restic|duplicati' || echo "0")
+    local cron_daily=$(run_cmd grep -rlE 'backup|rsync|borg|restic' /etc/cron.daily /etc/cron.weekly 2>/dev/null | wc -l || echo "0")
+    local timers=$(run_cmd systemctl list-timers --all 2>/dev/null | grep -ciE 'backup|rsync|borg|restic' || echo "0")
+    
+    if [[ "$(safe_int "$cron_jobs")" -gt 0 || "$(safe_int "$cron_daily")" -gt 0 || "$(safe_int "$timers")" -gt 0 ]]; then
+        log_entry "Backup" "OK" "Rotinas de backup agendadas detectadas (cron/timers)"
+    else
+        log_entry "Backup" "WARN" "Nenhuma rotina de backup agendada encontrada"
+        score_sub "Backup" 10
+    fi
+
+    for tool in borg restic duplicati timeshift rdiff-backup; do
+        if command -v "$tool" &>/dev/null; then
+            log_entry "Backup" "INFO" "Ferramenta de backup instalada: $tool"
+        fi
+    done
+}
+
+check_logs() {
+    log_entry "Logs" "HEADER" "Análise de Logs (Journal)"
+    
+    if ! command -v journalctl &>/dev/null; then
+        log_entry "Logs" "INFO" "journalctl não disponível"
+        return
+    fi
+
+    # CORREÇÃO: Parser do journalctl --disk-usage para diferentes formatos
+    local disk_usage_raw=$(run_cmd journalctl --disk-usage 2>/dev/null)
+    local disk_usage=""
+    if [[ -n "$disk_usage_raw" ]]; then
+        # Formato pode ser: "Journals take up 1.2G on disk." ou "Archived/active journal: 1.2G"
+        disk_usage=$(echo "$disk_usage_raw" | awk '{
+            for(i=1;i<=NF;i++) {
+                if ($i ~ /^[0-9]+\.?[0-9]*[KMGT]$/) {
+                    print $(i-1), $i
+                    exit
+                }
+            }
+        }')
+        if [[ -z "$disk_usage" ]]; then
+            disk_usage="$disk_usage_raw"
+        fi
+    fi
+    log_entry "Logs" "INFO" "Espaço em disco usado pelos logs: ${disk_usage:-Não disponível}"
+
+    log_entry "Logs" "SUB" "Top 15 Serviços com Erros (últimas 24h)"
+    local errors=$(run_cmd journalctl -p err --since "24 hours ago" --no-pager -o short-iso 2>/dev/null | awk '{
+        svc=$3;
+        gsub(/\[.*/, "", svc);
+        gsub(/:$/, "", svc);
+        if (svc != "" && svc != "kernel") print svc;
+    }' | sort | uniq -c | sort -rn | head -15)
+    
+    local total_errs=$(run_cmd journalctl -p err --since "24 hours ago" --no-pager 2>/dev/null | wc -l || echo "0")
+    log_entry "Logs" "INFO" "Total de entradas de erro: $total_errs"
+
+    if [[ "$(safe_int "$total_errs")" -gt 100 ]]; then
+        log_entry "Logs" "WARN" "Volume elevado de erros no journal"
+        score_sub "Logs" 5
+    fi
+
+    if [[ -n "$errors" ]]; then
+        echo "$errors" | while read -r count svc; do
+            [[ -n "$svc" && "$svc" != "" ]] && log_entry "Logs" "INFO" "  [$count erros] $svc"
+        done
+    else
+        log_entry "Logs" "OK" "Nenhum erro agrupado relevante nas últimas 24h"
+    fi
+}
+
+check_gui() {
+    log_entry "System" "SUB" "Interface Gráfica (GNOME)"
+    local is_gnome=0
+    
+    if [[ "${XDG_CURRENT_DESKTOP:-}" == *"GNOME"* ]]; then is_gnome=1; fi
+    if run_cmd dpkg -l 2>/dev/null | grep -qE 'gnome-shell|ubuntu-desktop'; then is_gnome=1; fi
+    
+    if run_cmd systemctl is-active --quiet gdm 2>/dev/null; then is_gnome=1; fi
+    if run_cmd systemctl is-active --quiet gdm3 2>/dev/null; then is_gnome=1; fi
+    if run_cmd systemctl is-active --quiet lightdm 2>/dev/null; then is_gnome=1; fi
+    if run_cmd systemctl is-active --quiet sddm 2>/dev/null; then is_gnome=1; fi
+
+    if [[ "$is_gnome" -eq 1 ]]; then
+        log_entry "System" "OK" "Ambiente GNOME detectado"
+        local xorg_mem=$(run_cmd ps -eo rss,comm 2>/dev/null | awk '/[X]org/{sum+=$1} END {if(sum>0) printf "%.0f MB", sum/1024; else print "0 MB"}')
+        log_entry "System" "INFO" "Memória usada pelo Xorg: $xorg_mem"
+        
+        local dm=""
+        for dm_name in gdm gdm3 lightdm sddm; do
+            if run_cmd systemctl is-active --quiet "$dm_name" 2>/dev/null; then
+                dm="$dm_name"
+                break
+            fi
+        done
+        
+        if [[ -n "$dm" ]]; then
+            log_entry "System" "OK" "Display Manager ativo: $dm"
+        else
+            log_entry "System" "WARN" "Display Manager não detectado como ativo"
+        fi
+    else
+        log_entry "System" "INFO" "Interface gráfica GNOME não detectada (Modo Headless ou outro DE)"
+    fi
+}
+
+# CORREÇÃO: Docker usando docker inspect --format para extração eficiente
+check_docker() {
+    if ! command -v docker &>/dev/null; then
+        log_entry "Docker" "INFO" "Docker não instalado"
+        return
+    fi
+    log_entry "Docker" "HEADER" "Docker"
+
+    if ! run_cmd systemctl is-active --quiet docker; then
+        log_entry "Docker" "ERROR" "Daemon Docker inativo"
+        score_sub "Docker" 20
+        return
+    fi
+    log_entry "Docker" "OK" "Daemon Docker ativo"
+
+    local total=$(run_cmd docker ps -a -q 2>/dev/null | wc -l)
+    local running=$(run_cmd docker ps -q 2>/dev/null | wc -l)
+    local unhealthy=$(run_cmd docker ps --filter "health=unhealthy" -q 2>/dev/null | wc -l)
+    local restarting=$(run_cmd docker ps --filter "status=restarting" -q 2>/dev/null | wc -l)
+
+    log_entry "Docker" "INFO" "Containers: $total total, $running rodando"
+    
+    if [[ "$(safe_int "$unhealthy")" -gt 0 ]]; then
+        log_entry "Docker" "WARN" "$unhealthy container(s) com status unhealthy"
+        score_sub "Docker" 10
+    fi
+    if [[ "$(safe_int "$restarting")" -gt 0 ]]; then
+        log_entry "Docker" "ERROR" "$restarting container(s) em loop de restart"
+        score_sub "Docker" 15
+    fi
+
+    log_entry "Docker" "SUB" "Detalhes de Containers (Healthcheck & Restart)"
+    # CORREÇÃO: Usar docker inspect --format para extração eficiente
+    local containers=$(run_cmd docker ps -a --format "{{.Names}}" 2>/dev/null | head -10)
+    if [[ -n "$containers" ]]; then
+        echo "$containers" | while read -r cname; do
+            [[ -z "$cname" ]] && continue
+            
+            # Usar --format para extrair todas as informações de uma vez
+            local inspect_data=$(run_cmd docker inspect --format '{{.Name}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.RestartPolicy.MaximumRetryCount}}|{{.RestartCount}}' "$cname" 2>/dev/null)
+            
+            if [[ -n "$inspect_data" ]]; then
+                IFS='|' read -r name health restart_policy max_retry restart_count <<< "$inspect_data"
+                # Remover / do nome
+                name="${name#/}"
+                
+                log_entry "Docker" "INFO" "  $name | Health: $health | Restart: $restart_policy (max: $max_retry) | Count: $restart_count"
+                
+                if [[ "$(safe_int "$restart_count")" -gt 5 ]]; then
+                    log_entry "Docker" "WARN" "Container $name reiniciado $restart_count vezes"
+                fi
+            else
+                log_entry "Docker" "INFO" "  $name | Informações não disponíveis"
+            fi
+        done
+    fi
+
+    local dangling_vols=$(run_cmd docker volume ls -qf dangling=true 2>/dev/null | wc -l)
+    [[ "$(safe_int "$dangling_vols")" -gt 0 ]] && log_entry "Docker" "WARN" "$dangling_vols volumes órfãos detectados"
+
+    local dangling_imgs=$(run_cmd docker images -qf dangling=true 2>/dev/null | wc -l)
+    [[ "$(safe_int "$dangling_imgs")" -gt 0 ]] && log_entry "Docker" "WARN" "$dangling_imgs imagens órfãs (dangling) detectadas"
+
+    log_entry "Docker" "SUB" "Uso de Espaço Docker"
+    run_cmd docker system df 2>/dev/null | while read -r line; do
+        [[ -n "$line" ]] && log_entry "Docker" "INFO" "  $line"
+    done
+}
+
+check_apache() {
+    if ! command -v apache2ctl &>/dev/null; then
+        log_entry "Apache" "INFO" "Apache não instalado"
+        return
+    fi
+    log_entry "Apache" "HEADER" "Apache HTTP Server"
+
+    if ! run_cmd systemctl is-active --quiet apache2; then
+        log_entry "Apache" "ERROR" "Serviço Apache inativo"
+        score_sub "Apache" 20
+        return
+    fi
+    log_entry "Apache" "OK" "Serviço Apache ativo"
+
+    local conf_test=$(run_cmd apache2ctl -t 2>&1)
+    if echo "$conf_test" | grep -q 'Syntax OK'; then
+        log_entry "Apache" "OK" "Sintaxe da configuração: OK"
+    else
+        log_entry "Apache" "ERROR" "Erro de sintaxe: $conf_test"
+        score_sub "Apache" 15
+    fi
+
+    log_entry "Apache" "SUB" "Configurações do Servidor"
+    local server_tokens=$(run_cmd apache2ctl -V 2>/dev/null | grep -i 'Server Tokens' | awk '{print $4}' || echo "N/A")
+    local server_signature=$(run_cmd apache2ctl -V 2>/dev/null | grep -i 'Server Signature' | awk '{print $4}' || echo "N/A")
+    log_entry "Apache" "INFO" "ServerTokens: $server_tokens | ServerSignature: $server_signature"
+    
+    if [[ "$server_tokens" == "Prod" || "$server_tokens" == "ProductOnly" ]]; then
+        log_entry "Apache" "OK" "ServerTokens configurado de forma segura (Prod)"
+    else
+        log_entry "Apache" "WARN" "ServerTokens pode estar expondo informações (não é 'Prod')"
+    fi
+
+    local keepalive=$(run_cmd grep -i '^KeepAlive' /etc/apache2/apache2.conf 2>/dev/null | head -1 | awk '{print $2}' || echo "N/A")
+    log_entry "Apache" "INFO" "KeepAlive: ${keepalive:-N/A (padrão)}"
+
+    local mpm=$(run_cmd apache2ctl -M 2>/dev/null | grep -oE 'mpm_(prefork|worker|event)' | head -1)
+    log_entry "Apache" "INFO" "MPM Ativo: ${mpm:-N/A}"
+
+    local listen_ports=$(run_cmd grep -i '^Listen' /etc/apache2/ports.conf /etc/apache2/sites-enabled/*.conf 2>/dev/null | awk '{print $2}' | sort -u | tr '\n' ' ')
+    log_entry "Apache" "INFO" "Portas Listen: ${listen_ports:-80}"
+
+    log_entry "Apache" "SUB" "Virtual Hosts"
+    run_cmd apache2ctl -S 2>/dev/null | grep -E 'namevhost|port' | head -10 | while read -r line; do
+        log_entry "Apache" "INFO" "  $line"
+    done
+
+    if run_cmd apache2ctl -M 2>/dev/null | grep -q 'ssl_module'; then
+        log_entry "Apache" "OK" "Módulo SSL habilitado"
+        log_entry "Apache" "SUB" "Certificados SSL"
+        local certs=$(run_cmd grep -rh 'SSLCertificateFile' /etc/apache2/sites-enabled/ 2>/dev/null | awk '{print $2}' | tr -d '"' | sort -u)
+        for cert in $certs; do
+            if [[ -f "$cert" ]]; then
+                if openssl x509 -checkend 2592000 -noout -in "$cert" 2>/dev/null; then
+                    local exp_date=$(openssl x509 -enddate -noout -in "$cert" 2>/dev/null | cut -d= -f2)
+                    log_entry "Apache" "OK" "Certificado válido até: $exp_date ($cert)"
+                else
+                    log_entry "Apache" "ERROR" "Certificado EXPIRADO ou expira em < 30 dias: $cert"
+                    score_sub "Apache" 15
+                fi
+            fi
+        done
+    fi
+}
+
+# CORREÇÃO: PHP com tratamento explícito de erros de permissão/acesso
+check_php() {
+    if ! command -v php &>/dev/null; then
+        log_entry "PHP" "INFO" "PHP não instalado"
+        return
+    fi
+    log_entry "PHP" "HEADER" "PHP"
+
+    local version=$(run_cmd php -v 2>/dev/null | head -1)
+    log_entry "PHP" "INFO" "Versão CLI: $version"
+
+    log_entry "PHP" "SUB" "Configurações e Arquivos"
+    local loaded_ini=$(run_cmd php -i 2>/dev/null | grep 'Loaded Configuration File' | awk -F' => ' '{print $2}')
+    log_entry "PHP" "INFO" "Loaded php.ini (CLI): ${loaded_ini:-N/A}"
+
+    # CORREÇÃO: Tratamento explícito de erros ao executar php -r
+    local timezone=""
+    if timezone=$(php -r 'echo ini_get("date.timezone");' 2>/dev/null); then
+        log_entry "PHP" "INFO" "Timezone: ${timezone:-Não definido (usando padrão do sistema)}"
+    else
+        log_entry "PHP" "INFO" "Timezone: Não acessível (erro ao executar php -r)"
+    fi
+
+    local realpath_cache=""
+    if realpath_cache=$(php -r 'echo ini_get("realpath_cache_size");' 2>/dev/null); then
+        log_entry "PHP" "INFO" "Realpath Cache Size: ${realpath_cache:-N/A}"
+    else
+        log_entry "PHP" "INFO" "Realpath Cache Size: Não acessível"
+    fi
+
+    local mem_limit=""
+    if mem_limit=$(php -r 'echo ini_get("memory_limit");' 2>/dev/null); then
+        if [[ "$mem_limit" == "-1" ]]; then
+            log_entry "PHP" "OK" "memory_limit = -1 (Ilimitado, configurado intencionalmente)"
+        elif [[ "$mem_limit" =~ ^([0-9]+)M$ ]]; then
+            local val="${BASH_REMATCH[1]}"
+            if [[ "$val" -lt 128 ]]; then
+                log_entry "PHP" "WARN" "memory_limit baixo: $mem_limit"
+                score_sub "PHP" 5
+            else
+                log_entry "PHP" "OK" "memory_limit: $mem_limit"
+            fi
+        else
+            log_entry "PHP" "INFO" "memory_limit: $mem_limit"
+        fi
+    else
+        log_entry "PHP" "INFO" "memory_limit: Não acessível (erro ao executar php -r)"
+    fi
+
+    log_entry "PHP" "SUB" "Ambientes PHP"
+    run_cmd systemctl is-active --quiet php*-fpm && log_entry "PHP" "OK" "PHP-FPM ativo" || log_entry "PHP" "INFO" "PHP-FPM inativo/não instalado"
+    run_cmd apache2ctl -M 2>/dev/null | grep -q 'php' && log_entry "PHP" "OK" "Módulo PHP do Apache carregado" || log_entry "PHP" "INFO" "Módulo PHP do Apache não carregado"
+
+    log_entry "PHP" "SUB" "OPcache"
+    local opcache=""
+    if opcache=$(php -r 'echo function_exists("opcache_get_status") && opcache_get_status() ? "Habilitado" : "Desabilitado";' 2>/dev/null); then
+        if [[ "$opcache" == "Habilitado" ]]; then
+            log_entry "PHP" "OK" "OPcache Habilitado"
+            
+            # CORREÇÃO: Tratamento explícito de erros nas métricas do OPcache
+            local hit_rate=""
+            if hit_rate=$(php -r '$s=opcache_get_status(false); echo $s ? round($s["opcache_statistics"]["opcache_hit_rate"], 2) : 0;' 2>/dev/null); then
+                local mem_used=""
+                if mem_used=$(php -r '$s=opcache_get_status(false); echo $s ? round($s["memory_usage"]["used_memory"]/1024/1024, 2) : 0;' 2>/dev/null); then
+                    local scripts=""
+                    if scripts=$(php -r '$s=opcache_get_status(false); echo $s ? $s["opcache_statistics"]["num_cached_scripts"] : 0;' 2>/dev/null); then
+                        log_entry "PHP" "INFO" "OPcache Hit Rate: ${hit_rate}% | Memória Usada: ${mem_used}MB | Scripts: $scripts"
+                        if safe_compare "$hit_rate" "<" "50"; then
+                            log_entry "PHP" "WARN" "Hit rate do OPcache baixo (< 50%)"
+                        fi
+                    else
+                        log_entry "PHP" "INFO" "OPcache métricas não acessíveis (erro ao ler scripts)"
+                    fi
+                else
+                    log_entry "PHP" "INFO" "OPcache métricas não acessíveis (erro ao ler memória)"
+                fi
+            else
+                log_entry "PHP" "INFO" "OPcache métricas não acessíveis (erro ao ler hit rate)"
+            fi
+        else
+            log_entry "PHP" "WARN" "OPcache Desabilitado"
+            score_sub "PHP" 5
+        fi
+    else
+        log_entry "PHP" "INFO" "OPcache status não acessível (erro ao executar php -r)"
+    fi
+
+    log_entry "PHP" "SUB" "Extensões Carregadas"
+    local extensions=$(run_cmd php -m 2>/dev/null | grep -v '^\[' | sort | tr '\n' ' ')
+    local ext_count=$(run_cmd php -m 2>/dev/null | grep -v '^\[' | wc -l)
+    log_entry "PHP" "INFO" "Total de extensões: $ext_count"
+    log_entry "PHP" "INFO" "Extensões: $extensions"
+}
+
+# CORREÇÃO: MySQL com tratamento explícito de erros de autenticação
+check_mysql() {
+    local mysql_cmd=""
+    command -v mysql &>/dev/null && mysql_cmd="mysql"
+    command -v mariadb &>/dev/null && mysql_cmd="mariadb"
+
+    if [[ -z "$mysql_cmd" ]]; then
+        log_entry "MySQL" "INFO" "MySQL/MariaDB não instalado"
+        return
+    fi
+    log_entry "MySQL" "HEADER" "Banco de Dados (MySQL/MariaDB)"
+
+    local svc=""
+    for s in mysql mysqld mariadb; do
+        run_cmd systemctl is-active --quiet "$s" && svc="$s" && break
+    done
+
+    if [[ -z "$svc" ]]; then
+        log_entry "MySQL" "ERROR" "Serviço de banco de dados inativo"
+        score_sub "MySQL" 20
+        return
+    fi
+    log_entry "MySQL" "OK" "Serviço $svc ativo"
+
+    local version=$(run_cmd $mysql_cmd --version 2>/dev/null)
+    log_entry "MySQL" "INFO" "Versão: $version"
+
+    log_entry "MySQL" "SUB" "Status e Métricas"
+    
+    # CORREÇÃO: Tratamento explícito de erros de autenticação
+    local status=""
+    local mysql_error=""
+    if status=$($mysql_cmd -e "SHOW GLOBAL STATUS LIKE 'Uptime'; SHOW GLOBAL STATUS LIKE 'Threads_connected'; SHOW GLOBAL STATUS LIKE 'Aborted_connections'; SHOW GLOBAL VARIABLES LIKE 'innodb_buffer_pool_size'; SHOW GLOBAL VARIABLES LIKE 'slow_query_log'; SHOW GLOBAL VARIABLES LIKE 'log_bin';" 2>&1); then
+        if [[ -n "$status" ]]; then
+            local uptime=$(echo "$status" | grep 'Uptime' | awk '{print $2}')
+            local threads=$(echo "$status" | grep 'Threads_connected' | awk '{print $2}')
+            local aborted=$(echo "$status" | grep 'Aborted_connections' | awk '{print $2}')
+            local pool=$(echo "$status" | grep 'innodb_buffer_pool_size' | awk '{print $2}')
+            local slow_log=$(echo "$status" | grep 'slow_query_log' | awk '{print $2}')
+            local log_bin=$(echo "$status" | grep 'log_bin' | awk '{print $2}')
+            
+            if [[ -n "$uptime" ]]; then
+                local days=$((uptime / 86400))
+                local hours=$(( (uptime % 86400) / 3600 ))
+                log_entry "MySQL" "INFO" "Uptime: ${days}d ${hours}h | Conexões ativas: ${threads:-N/A} | Buffer Pool: ${pool:-N/A} bytes"
+                log_entry "MySQL" "INFO" "Slow Query Log: ${slow_log:-OFF} | Binary Log: ${log_bin:-OFF}"
+                
+                if [[ -n "$aborted" && "$(safe_int "$aborted")" -gt 100 ]]; then
+                    log_entry "MySQL" "WARN" "Conexões abortadas elevadas: $aborted"
+                    score_sub "MySQL" 5
+                elif [[ -n "$aborted" ]]; then
+                    log_entry "MySQL" "INFO" "Conexões abortadas: $aborted"
+                fi
+            else
+                log_entry "MySQL" "INFO" "Métricas do MySQL não disponíveis (formato de saída inesperado)"
+            fi
+        else
+            log_entry "MySQL" "INFO" "Métricas do MySQL não disponíveis (saída vazia)"
+        fi
+    else
+        mysql_error="$status"
+        # Verificar se é erro de autenticação
+        if echo "$mysql_error" | grep -qi 'access denied\|error 1045\|error 1698'; then
+            log_entry "MySQL" "INFO" "Métricas internas não acessíveis (requer autenticação MySQL com privilégios adequados)"
+            log_entry "MySQL" "INFO" "Dica: Configure autenticação sem senha para root ou use arquivo .my.cnf"
+        else
+            log_entry "MySQL" "INFO" "Métricas internas não acessíveis (erro: $(echo "$mysql_error" | head -1))"
+        fi
+    fi
+}
+
+check_trim() {
+    log_entry "TRIM" "HEADER" "TRIM (SSD/NVMe)"
+    
+    if run_cmd systemctl is-active --quiet fstrim.timer; then
+        log_entry "TRIM" "OK" "fstrim.timer ativo (TRIM automático agendado)"
+        local next_run=$(run_cmd systemctl list-timers fstrim.timer --no-legend --no-pager 2>/dev/null | awk '{print $1, $2, $3}')
+        [[ -n "$next_run" ]] && log_entry "TRIM" "INFO" "Próxima execução agendada: $next_run"
+    else
+        log_entry "TRIM" "WARN" "fstrim.timer inativo"
+        score_sub "TRIM" 10
+    fi
+
+    local last_trim=$(run_cmd journalctl -u fstrim.service --no-pager 2>/dev/null | grep -i 'discarded' | tail -1)
+    [[ -n "$last_trim" ]] && log_entry "TRIM" "INFO" "Última execução do fstrim: $last_trim"
+
+    log_entry "TRIM" "SUB" "Suporte a TRIM por dispositivo"
+    run_cmd lsblk -dno NAME,ROTA,DISC-ALN,DISC-GRAN 2>/dev/null | awk '$2=="0" && $3!="0" {print "  " $1 " (Alignment: " $3 ", Granularity: " $4 ")"}' | while read -r line; do
+        [[ -n "$line" ]] && log_entry "TRIM" "INFO" "$line"
+    done
+}
+
+#===============================================================================
+# 4. GERAÇÃO DE RELATÓRIOS (APENAS AO FINAL)
+#===============================================================================
+
+calculate_final_score() {
+    local total_score=0
+    local cat_count=0
+    for cat in "${!CATEGORY_SCORES[@]}"; do
+        total_score=$((total_score + CATEGORY_SCORES[$cat]))
+        ((cat_count++))
+    done
+    
+    local final_score=0
+    if [[ "$cat_count" -gt 0 ]]; then
+        final_score=$((total_score / cat_count))
+    fi
+    echo "$final_score"
+}
+
+get_classification() {
+    local score=$1
+    if [[ "$score" -ge 90 ]]; then echo "EXCELENTE"
+    elif [[ "$score" -ge 75 ]]; then echo "BOM"
+    elif [[ "$score" -ge 60 ]]; then echo "REGULAR"
+    elif [[ "$score" -ge 40 ]]; then echo "RUIM"
+    else echo "CRÍTICO"
+    fi
+}
+
+generate_reports() {
+    local final_score=$(calculate_final_score)
+    local classification=$(get_classification "$final_score")
+
+    {
+        echo "<!DOCTYPE html><html lang='pt-BR'><head><meta charset='UTF-8'>"
+        echo "<title>Relatório de Diagnóstico - $HOSTNAME</title>"
+        echo "<style>"
+        echo "body{font-family:Arial,sans-serif;margin:20px;color:#333;font-size:10pt}"
+        echo "h1{color:#2c3e50;border-bottom:3px solid #3498db;padding-bottom:10px}"
+        echo "h2{color:#34495e;border-bottom:2px solid #95a5a6;margin-top:25px}"
+        echo "h3{color:#7f8c8d;margin-top:15px}"
+        echo ".ok{color:#27ae60}.warn{color:#d35400;font-weight:bold}.error{color:#c0392b;font-weight:bold}.info{color:#2980b9}"
+        echo ".summary{padding:15px;border-left:5px solid #3498db;background:#f8f9fa;margin:20px 0}"
+        echo ".excellent{border-left-color:#27ae60;background:#e8f5e9}.critical{border-left-color:#c0392b;background:#ffebee}"
+        echo "table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border:1px solid #bdc3c7;padding:6px;text-align:left}"
+        echo "th{background:#3498db;color:white}.footer{margin-top:30px;font-size:8pt;color:#7f8c8d;border-top:1px solid #bdc3c7;padding-top:10px}"
+        echo "</style></head><body>"
+        echo "<h1>Relatório de Diagnóstico do Servidor</h1>"
+        echo "<div class='summary'><table>"
+        echo "<tr><td><strong>Hostname:</strong></td><td>$HOSTNAME</td></tr>"
+        echo "<tr><td><strong>Data:</strong></td><td>$DATE_HUMAN</td></tr>"
+        echo "<tr><td><strong>Kernel:</strong></td><td>$(uname -r)</td></tr>"
+        echo "<tr><td><strong>Versão do Script:</strong></td><td>$SCRIPT_VERSION</td></tr>"
+        echo "</table></div>"
+        
+        echo "<div class='summary $( [[ "$final_score" -lt 60 ]] && echo "critical" || echo "excellent" )'>"
+        echo "<h2>Resumo Final</h2>"
+        echo "<table><tr><td><strong>Pontuação Geral:</strong></td><td><strong>$final_score / 100</strong></td></tr>"
+        echo "<tr><td><strong>Classificação:</strong></td><td><strong>$classification</strong></td></tr></table></div>"
+
+        echo "<h2>Pontuação por Categoria</h2><table><tr><th>Categoria</th><th>Score</th></tr>"
+        for cat in "${!CATEGORY_SCORES[@]}"; do
+            local score="${CATEGORY_SCORES[$cat]}"
+            local color="#27ae60"
+            [[ "$score" -lt 80 ]] && color="#f39c12"
+            [[ "$score" -lt 60 ]] && color="#c0392b"
+            echo "<tr><td>$cat</td><td style='color:$color;font-weight:bold'>$score/100</td></tr>"
+        done
+        echo "</table>"
+
+        local current_header=""
+        for entry in "${REPORT_DATA[@]}"; do
+            IFS='|' read -r cat level msg <<< "$entry"
+            
+            if [[ "$level" == "HEADER" ]]; then
+                echo "<h2>$msg</h2>"
+                current_header="$msg"
+            elif [[ "$level" == "SUB" ]]; then
+                echo "<h3>$msg</h3>"
+            else
+                echo "<p class='$(echo "$level" | tr '[:upper:]' '[:lower:]')'><strong>[$level]</strong> $msg</p>"
+            fi
+        done
+
+        echo "<div class='footer'><p>Gerado automaticamente por $SCRIPT_NAME v$SCRIPT_VERSION</p></div>"
+        echo "</body></html>"
+    } > "$HTML_BUF"
+
+    mv "$HTML_BUF" "$HTML_FILE"
+
+    {
+        echo "==============================================================================="
+        echo "RELATÓRIO DE DIAGNÓSTICO DO SERVIDOR"
+        echo "==============================================================================="
+        echo "Hostname: $HOSTNAME | Data: $DATE_HUMAN"
+        echo "Pontuação Geral: $final_score/100 ($classification)"
+        echo "==============================================================================="
+        for entry in "${REPORT_DATA[@]}"; do
+            IFS='|' read -r cat level msg <<< "$entry"
+            printf "%-10s | %-8s | %s\n" "[$cat]" "[$level]" "$msg"
+        done
+        echo "==============================================================================="
+    } > "$TXT_FILE"
+
+    if command -v wkhtmltopdf &>/dev/null; then
+        wkhtmltopdf --quiet --page-size A4 --margin-top 15mm --margin-bottom 15mm \
+            --margin-left 15mm --margin-right 15mm --encoding utf-8 \
+            --footer-center "[page] de [toPage]" \
+            "file://$HTML_FILE" "$PDF_FILE" 2>/dev/null && \
+            log_entry "System" "OK" "Relatório PDF gerado: $PDF_FILE" || \
+            log_entry "System" "WARN" "Falha ao gerar PDF via wkhtmltopdf"
+    else
+        log_entry "System" "INFO" "wkhtmltopdf não instalado. PDF não gerado. (Execute: sudo apt install wkhtmltopdf)"
+    fi
+
+    rm -f "$HTML_BUF" 2>/dev/null || true
+}
+
+#===============================================================================
+# 5. FLUXO PRINCIPAL
+#===============================================================================
+
+main() {
+        initialize
+
+    show_banner 
+    
+    echo -e "${C_CYAN}${C_BOLD}===============================================================================${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD} INICIANDO DIAGNÓSTICO PROFISSIONAL DO SERVIDOR v${SCRIPT_VERSION}${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD} Data: ${DATE_HUMAN} | Host: ${HOSTNAME}${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD}===============================================================================${C_RESET}\n"
+
+    mkdir -p "$REPORT_DIR" 2>/dev/null || { echo "ERRO: Sem permissão para escrever em $REPORT_DIR"; exit 1; }
+
+    check_system_and_boot
+    check_cpu
+    check_memory
+    check_disks_and_lvm
+    check_smart
+    check_network
+    check_services_and_security
+    check_backup
+    check_logs
+    check_gui
+    check_docker
+    check_apache
+    check_php
+    check_mysql
+    check_trim
+
+    echo -e "\n${C_CYAN}${C_BOLD}Processando dados e gerando relatórios...${C_RESET}"
+    generate_reports
+
+    local final_score=$(calculate_final_score)
+    local classification=$(get_classification "$final_score")
+    
+    echo -e "\n${C_CYAN}${C_BOLD}===============================================================================${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD} DIAGNÓSTICO CONCLUÍDO${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD} Pontuação: ${final_score}/100 (${classification})${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD} Arquivos:${C_RESET}"
+    echo -e "  - Texto: ${TXT_FILE}"
+    echo -e "  - HTML:  ${HTML_FILE}"
+    [[ -f "$PDF_FILE" ]] && echo -e "  - PDF:   ${PDF_FILE}"
+    echo -e "${C_CYAN}${C_BOLD}===============================================================================${C_RESET}\n"
+}
+
+main "$@"
+exit 0

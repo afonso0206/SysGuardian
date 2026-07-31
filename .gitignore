@@ -1,0 +1,25 @@
+# Relatórios gerados
+*.pdf
+*.html
+*.txt
+*.log
+
+# Arquivos temporários
+*.tmp
+*.swp
+*~
+
+# Cache
+.cache/
+tmp/
+
+# Python
+__pycache__/
+
+# IDEs
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
