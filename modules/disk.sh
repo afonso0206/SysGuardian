@@ -98,6 +98,59 @@ disk_get_mountpoint() {
 }
 
 #===============================================================================
+# API EXPANDIDA (PR-004)
+#===============================================================================
+
+disk_get_partition_usage() {
+
+    if disk_has_df; then
+
+        df -hT \
+            --output=source,fstype,size,used,avail,pcent,target \
+            2>/dev/null || true
+
+    fi
+
+}
+
+disk_get_mounts() {
+
+    if command_exists findmnt; then
+
+        findmnt -rn 2>/dev/null || true
+
+    elif file_exists "/proc/mounts"; then
+
+        cat /proc/mounts 2>/dev/null || true
+
+    fi
+
+}
+
+disk_get_inodes() {
+
+    if disk_has_df; then
+
+        df -i 2>/dev/null || true
+
+    fi
+
+}
+
+disk_get_physical_disks() {
+
+    if command_exists lsblk; then
+
+        lsblk \
+            -d \
+            -o NAME,SIZE,MODEL,ROTA,TRAN \
+            -n \
+            2>/dev/null || true
+
+    fi
+
+}
+#===============================================================================
 # CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
 
