@@ -312,65 +312,90 @@ check_system_and_boot() {
 
 }
 check_cpu() {
+
     log_entry "CPU" "HEADER" "Processador (CPU)"
-    
-    # CORREÇÃO: Parser do modelo da CPU usando awk -F': ' para extração precisa
-    local model=""
-    if [[ -f /proc/cpuinfo ]]; then
-        model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | awk -F': ' '{print $2}' | xargs)
-    fi
-    
-    # Fallback para lscpu se /proc/cpuinfo falhar
-    if [[ -z "$model" ]] && command -v lscpu &>/dev/null; then
-        model=$(lscpu 2>/dev/null | awk -F': ' '/Model name/{print $2}' | xargs)
-    fi
-    
-    # Último fallback
-    if [[ -z "$model" ]]; then
-        model="Não detectado"
-    fi
-    
-    local cores=$(run_cmd nproc)
-    local load=$(run_cmd uptime | awk -F'load average:' '{print $2}' | xargs)
-    
+
+    local model
+    local cores
+    local load
+
+    model="$(cpu_get_model)"
+    cores="$(cpu_get_cores)"
+    load="$(cpu_get_load_average)"
+
+    [[ -z "$model" ]] && model="Não detectado"
+    [[ -z "$cores" ]] && cores="Desconhecido"
+    [[ -z "$load" ]] && load="Desconhecido"
+
     log_entry "CPU" "INFO" "Modelo: $model"
     log_entry "CPU" "INFO" "Núcleos: $cores"
     log_entry "CPU" "INFO" "Carga: $load"
 
-    if command -v sensors &>/dev/null; then
-        local temp_data=$(run_cmd sensors 2>/dev/null)
+    if command_exists sensors; then
+
+        local temp_data
         local max_temp=0
         local temp_found=0
-        
+
+        temp_data="$(run_cmd sensors 2>/dev/null)"
+
         while IFS= read -r line; do
+
             if [[ "$line" =~ (Core|Package|Tctl|Tdie).*:\ +([0-9]+\.?[0-9]*)°C ]]; then
+
                 local sensor_name="${BASH_REMATCH[1]}"
                 local temp_val="${BASH_REMATCH[2]}"
-                log_entry "CPU" "INFO" "Temp $sensor_name: ${temp_val}°C"
+
+                log_entry "CPU" "INFO" \
+                    "Temp $sensor_name: ${temp_val}°C"
+
                 temp_found=1
-                
+
                 if safe_compare "$temp_val" ">" "$max_temp"; then
                     max_temp="$temp_val"
                 fi
+
             fi
+
         done <<< "$temp_data"
 
         if [[ "$temp_found" -eq 1 ]]; then
+
             if safe_compare "$max_temp" ">=" "85"; then
-                log_entry "CPU" "ERROR" "Temperatura crítica: ${max_temp}°C"
+
+                log_entry "CPU" "ERROR" \
+                    "Temperatura crítica: ${max_temp}°C"
+
                 score_sub "CPU" 15
+
             elif safe_compare "$max_temp" ">=" "75"; then
-                log_entry "CPU" "WARN" "Temperatura elevada: ${max_temp}°C"
+
+                log_entry "CPU" "WARN" \
+                    "Temperatura elevada: ${max_temp}°C"
+
                 score_sub "CPU" 5
+
             else
-                log_entry "CPU" "OK" "Temperaturas dentro da faixa normal (${max_temp}°C)"
+
+                log_entry "CPU" "OK" \
+                    "Temperaturas dentro da faixa normal (${max_temp}°C)"
+
             fi
+
         else
-            log_entry "CPU" "INFO" "Nenhuma temperatura de CPU detectada pelos sensores"
+
+            log_entry "CPU" "INFO" \
+                "Nenhuma temperatura de CPU detectada pelos sensores"
+
         fi
+
     else
-        log_entry "CPU" "INFO" "Temperatura não verificada (lm-sensors não instalado)"
+
+        log_entry "CPU" "INFO" \
+            "Temperatura não verificada (lm-sensors não instalado)"
+
     fi
+
 }
 
 check_memory() {
