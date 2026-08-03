@@ -22,169 +22,218 @@ fi
 readonly SYSGUARDIAN_SECURITY_LOADED=1
 
 #===============================================================================
-# FIREWALL
+# CAMADA 1 - API DE COLETA (GETTERS)
 #===============================================================================
 
-security_firewall() {
-
-    local firewall="Não detectado"
+security_get_firewall() {
 
     if command_exists ufw; then
 
-        firewall="$(
-            ufw status 2>/dev/null |
-            awk 'NR==1 {print; exit}'
-        )"
+        ufw status 2>/dev/null |
+        awk 'NR==1 {print; exit}'
 
     elif command_exists firewall-cmd; then
 
-        firewall="Firewalld"
+        printf "Firewalld"
 
     elif command_exists iptables; then
 
-        firewall="iptables"
+        printf "iptables"
+
+    else
+
+        printf "Não detectado"
 
     fi
 
-    printf "Firewall.............: %s\n" "$firewall"
-
 }
 
-#===============================================================================
-# SELINUX
-#===============================================================================
-
-security_selinux() {
-
-    local status="Não instalado"
+security_get_selinux() {
 
     if command_exists getenforce; then
-        status="$(getenforce)"
+        getenforce
+    else
+        printf "Não instalado"
     fi
-
-    printf "SELinux..............: %s\n" "$status"
 
 }
 
-#===============================================================================
-# APPARMOR
-#===============================================================================
-
-security_apparmor() {
-
-    local status="Não instalado"
+security_get_apparmor() {
 
     if file_exists "/sys/module/apparmor/parameters/enabled"; then
 
         if grep -q '^Y$' /sys/module/apparmor/parameters/enabled; then
-            status="Ativo"
+            printf "Ativo"
         else
-            status="Inativo"
+            printf "Inativo"
         fi
+
+    else
+
+        printf "Não instalado"
 
     fi
 
-    printf "AppArmor.............: %s\n" "$status"
-
 }
 
-#===============================================================================
-# SECURE BOOT
-#===============================================================================
-
-security_secureboot() {
-
-    local status="Desconhecido"
+security_get_secureboot() {
 
     if command_exists mokutil; then
 
         if mokutil --sb-state 2>/dev/null |
             grep -qi enabled; then
 
-            status="Ativado"
+            printf "Ativado"
 
         else
 
-            status="Desativado"
+            printf "Desativado"
 
         fi
 
-    fi
+    else
 
-    printf "Secure Boot..........: %s\n" "$status"
+        printf "Desconhecido"
+
+    fi
 
 }
 
-#===============================================================================
-# USUÁRIOS UID 0
-#===============================================================================
-
-security_root_users() {
-
-    local count="Desconhecido"
+security_get_root_users() {
 
     if file_exists "/etc/passwd"; then
 
-        count="$(
-            awk -F: '$3==0{c++}END{print c+0}' /etc/passwd
-        )"
+        awk -F: '$3==0{c++}END{print c+0}' /etc/passwd
+
+    else
+
+        printf "Desconhecido"
 
     fi
 
-    printf "Usuários UID 0.......: %s\n" "$count"
+}
+
+security_get_tcp_ports() {
+
+    if command_exists ss; then
+
+        ss -tln 2>/dev/null |
+        awk 'NR>1{c++}END{print c+0}'
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+security_get_udp_ports() {
+
+    if command_exists ss; then
+
+        ss -uln 2>/dev/null |
+        awk 'NR>1{c++}END{print c+0}'
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+#----------------------------------------------------------------------------
+# APIs para futura integração do Core
+#----------------------------------------------------------------------------
+
+security_get_failed_logins() {
+
+    if command_exists journalctl; then
+
+        journalctl --since today 2>/dev/null |
+        grep -ci "Failed password" || true
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+security_get_ssh_root_login() {
+
+    if file_exists "/etc/ssh/sshd_config"; then
+
+        grep -Ei '^[[:space:]]*PermitRootLogin' \
+            /etc/ssh/sshd_config 2>/dev/null |
+        tail -1 |
+        awk '{print $2}'
+
+    fi
 
 }
 
 #===============================================================================
-# PORTAS TCP
+# CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
+
+security_firewall() {
+
+    printf "Firewall.............: %s\n" \
+        "$(security_get_firewall)"
+
+}
+
+security_selinux() {
+
+    printf "SELinux..............: %s\n" \
+        "$(security_get_selinux)"
+
+}
+
+security_apparmor() {
+
+    printf "AppArmor.............: %s\n" \
+        "$(security_get_apparmor)"
+
+}
+
+security_secureboot() {
+
+    printf "Secure Boot..........: %s\n" \
+        "$(security_get_secureboot)"
+
+}
+
+security_root_users() {
+
+    printf "Usuários UID 0.......: %s\n" \
+        "$(security_get_root_users)"
+
+}
 
 security_tcp_ports() {
 
-    local total="Desconhecido"
-
-    if command_exists ss; then
-
-        total="$(
-            ss -tln 2>/dev/null |
-            awk 'NR>1{c++}END{print c+0}'
-        )"
-
-    fi
-
-    printf "Portas TCP...........: %s\n" "$total"
+    printf "Portas TCP...........: %s\n" \
+        "$(security_get_tcp_ports)"
 
 }
-
-#===============================================================================
-# PORTAS UDP
-#===============================================================================
 
 security_udp_ports() {
 
-    local total="Desconhecido"
-
-    if command_exists ss; then
-
-        total="$(
-            ss -uln 2>/dev/null |
-            awk 'NR>1{c++}END{print c+0}'
-        )"
-
-    fi
-
-    printf "Portas UDP...........: %s\n" "$total"
+    printf "Portas UDP...........: %s\n" \
+        "$(security_get_udp_ports)"
 
 }
 
 #===============================================================================
-# EXECUÇÃO
+# CAMADA 3 - EXECUÇÃO
 #===============================================================================
 
 #
 # Função pública do módulo.
-#
-# Esta é a única função que deve ser chamada externamente.
 #
 
 security_run() {
