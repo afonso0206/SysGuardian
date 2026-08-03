@@ -22,7 +22,7 @@ fi
 readonly SYSGUARDIAN_DISK_LOADED=1
 
 #===============================================================================
-# VERIFICAR DISPONIBILIDADE DO DF
+# CAMADA 1 - API DE COLETA (GETTERS)
 #===============================================================================
 
 disk_has_df() {
@@ -31,105 +31,121 @@ disk_has_df() {
 
 }
 
+disk_get_total() {
+
+    if disk_has_df; then
+        df -h / | awk 'NR==2 {print $2}'
+    else
+        printf "Desconhecido"
+    fi
+
+}
+
+disk_get_used() {
+
+    if disk_has_df; then
+        df -h / | awk 'NR==2 {print $3}'
+    else
+        printf "Desconhecido"
+    fi
+
+}
+
+disk_get_available() {
+
+    if disk_has_df; then
+        df -h / | awk 'NR==2 {print $4}'
+    else
+        printf "Desconhecido"
+    fi
+
+}
+
+disk_get_usage() {
+
+    if disk_has_df; then
+        df -h / | awk 'NR==2 {print $5}'
+    else
+        printf "Desconhecido"
+    fi
+
+}
+
+disk_get_usage_percent() {
+
+    if disk_has_df; then
+        df -P / | awk 'NR==2 {gsub("%","",$5); print $5}'
+    else
+        printf "0"
+    fi
+
+}
+
+disk_get_filesystem() {
+
+    if disk_has_df; then
+        df -T / | awk 'NR==2 {print $2}'
+    else
+        printf "Desconhecido"
+    fi
+
+}
+
+disk_get_mountpoint() {
+
+    printf "/"
+
+}
+
 #===============================================================================
-# ESPAÇO TOTAL
+# CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
 
 disk_total() {
 
-    local total="Desconhecido"
-
-    if disk_has_df; then
-        total="$(df -h / | awk 'NR==2 {print $2}')"
-    fi
-
-    printf "Espaço Total.........: %s\n" "$total"
+    printf "Espaço Total.........: %s\n" \
+        "$(disk_get_total)"
 
 }
-
-#===============================================================================
-# ESPAÇO UTILIZADO
-#===============================================================================
 
 disk_used() {
 
-    local used="Desconhecido"
-
-    if disk_has_df; then
-        used="$(df -h / | awk 'NR==2 {print $3}')"
-    fi
-
-    printf "Espaço Utilizado.....: %s\n" "$used"
+    printf "Espaço Utilizado.....: %s\n" \
+        "$(disk_get_used)"
 
 }
-
-#===============================================================================
-# ESPAÇO LIVRE
-#===============================================================================
 
 disk_available() {
 
-    local available="Desconhecido"
-
-    if disk_has_df; then
-        available="$(df -h / | awk 'NR==2 {print $4}')"
-    fi
-
-    printf "Espaço Livre.........: %s\n" "$available"
+    printf "Espaço Livre.........: %s\n" \
+        "$(disk_get_available)"
 
 }
-
-#===============================================================================
-# UTILIZAÇÃO
-#===============================================================================
 
 disk_usage() {
 
-    local usage="Desconhecido"
-
-    if disk_has_df; then
-        usage="$(df -h / | awk 'NR==2 {print $5}')"
-    fi
-
-    printf "Utilização...........: %s\n" "$usage"
+    printf "Utilização...........: %s\n" \
+        "$(disk_get_usage)"
 
 }
-
-#===============================================================================
-# SISTEMA DE ARQUIVOS
-#===============================================================================
 
 disk_filesystem() {
 
-    local filesystem="Desconhecido"
-
-    if disk_has_df; then
-        filesystem="$(df -T / | awk 'NR==2 {print $2}')"
-    fi
-
-    printf "Sistema de Arquivos..: %s\n" "$filesystem"
+    printf "Sistema de Arquivos..: %s\n" \
+        "$(disk_get_filesystem)"
 
 }
-
-#===============================================================================
-# PONTO DE MONTAGEM
-#===============================================================================
 
 disk_mountpoint() {
 
-    printf "Ponto de Montagem....: /\n"
+    printf "Ponto de Montagem....: %s\n" \
+        "$(disk_get_mountpoint)"
 
 }
 
 #===============================================================================
-# EXECUÇÃO
+# CAMADA 3 - EXECUÇÃO
 #===============================================================================
-
-#
-# Função pública do módulo.
-#
-# Esta é a única função que deve ser chamada externamente.
-#
 
 disk_run() {
 
