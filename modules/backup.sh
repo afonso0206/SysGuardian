@@ -22,10 +22,10 @@ fi
 readonly SYSGUARDIAN_BACKUP_LOADED=1
 
 #===============================================================================
-# DIRETÓRIO PADRÃO DE BACKUP
+# CAMADA 1 - API DE COLETA (GETTERS)
 #===============================================================================
 
-backup_default_directory() {
+backup_get_default_directory() {
 
     if directory_exists "/backup"; then
         printf "/backup"
@@ -37,31 +37,22 @@ backup_default_directory() {
 
 }
 
-#===============================================================================
-# DIRETÓRIO DE BACKUP
-#===============================================================================
-
-backup_directory() {
+backup_get_directory() {
 
     local backup_dir
 
-    backup_dir="$(backup_default_directory)"
+    backup_dir="$(backup_get_default_directory)"
 
-    printf "Diretório Backup.....: %s\n" \
-        "${backup_dir:-Não encontrado}"
+    printf "%s" "${backup_dir:-Não encontrado}"
 
 }
 
-#===============================================================================
-# BACKUPS RECENTES
-#===============================================================================
-
-backup_recent() {
+backup_get_recent_count() {
 
     local backup_dir
     local count="0"
 
-    backup_dir="$(backup_default_directory)"
+    backup_dir="$(backup_get_default_directory)"
 
     if [[ -n "${backup_dir:-}" ]] &&
        directory_exists "$backup_dir" &&
@@ -87,15 +78,11 @@ backup_recent() {
 
     fi
 
-    printf "Backups Recentes.....: %s\n" "$count"
+    printf "%s" "$count"
 
 }
 
-#===============================================================================
-# ROTINAS CRON
-#===============================================================================
-
-backup_cron() {
+backup_get_cron_jobs() {
 
     local jobs="0"
 
@@ -118,15 +105,11 @@ backup_cron() {
 
     fi
 
-    printf "Rotinas Cron.........: %s\n" "$jobs"
+    printf "%s" "$jobs"
 
 }
 
-#===============================================================================
-# TIMERS SYSTEMD
-#===============================================================================
-
-backup_timers() {
+backup_get_timers() {
 
     local timers="0"
 
@@ -139,15 +122,11 @@ backup_timers() {
 
     fi
 
-    printf "Timers...............: %s\n" "$timers"
+    printf "%s" "$timers"
 
 }
 
-#===============================================================================
-# FERRAMENTAS DE BACKUP
-#===============================================================================
-
-backup_tools() {
+backup_get_tools() {
 
     local tools=()
     local tool
@@ -160,36 +139,76 @@ backup_tools() {
         timeshift \
         rdiff-backup
     do
-
         if command_exists "$tool"; then
             tools+=("$tool")
         fi
-
     done
 
     if ((${#tools[@]} == 0)); then
-
-        printf "Ferramentas..........: Nenhuma detectada\n"
-
+        printf "Nenhuma detectada"
     else
-
         list="$(IFS=', '; printf '%s' "${tools[*]}")"
+        printf "%s" "$list"
+    fi
 
-        printf "Ferramentas..........: %s\n" "$list"
+}
 
+#----------------------------------------------------------------------------
+# APIs preparadas para integração do Core
+#----------------------------------------------------------------------------
+
+backup_get_status() {
+
+    if [[ "$(backup_get_recent_count)" -gt 0 ]]; then
+        printf "OK"
+    else
+        printf "Sem backups recentes"
     fi
 
 }
 
 #===============================================================================
-# EXECUÇÃO
+# CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
 
-#
-# Função pública do módulo.
-#
-# Esta é a única função que deve ser chamada externamente.
-#
+backup_directory() {
+
+    printf "Diretório Backup.....: %s\n" \
+        "$(backup_get_directory)"
+
+}
+
+backup_recent() {
+
+    printf "Backups Recentes.....: %s\n" \
+        "$(backup_get_recent_count)"
+
+}
+
+backup_cron() {
+
+    printf "Rotinas Cron.........: %s\n" \
+        "$(backup_get_cron_jobs)"
+
+}
+
+backup_timers() {
+
+    printf "Timers...............: %s\n" \
+        "$(backup_get_timers)"
+
+}
+
+backup_tools() {
+
+    printf "Ferramentas..........: %s\n" \
+        "$(backup_get_tools)"
+
+}
+
+#===============================================================================
+# CAMADA 3 - EXECUÇÃO
+#===============================================================================
 
 backup_run() {
 
