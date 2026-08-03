@@ -22,10 +22,10 @@ fi
 readonly SYSGUARDIAN_LOGS_LOADED=1
 
 #===============================================================================
-# OBTÉM OS ERROS DO JOURNAL (ÚLTIMAS 24 HORAS)
+# CAMADA 1 - API DE COLETA (GETTERS)
 #===============================================================================
 
-logs_errors() {
+logs_get_errors() {
 
     if ! command_exists journalctl; then
         return 0
@@ -40,13 +40,9 @@ logs_errors() {
 
 }
 
-#===============================================================================
-# EXTRAI OS SERVIÇOS COM ERROS
-#===============================================================================
+logs_get_services() {
 
-logs_services() {
-
-    logs_errors |
+    logs_get_errors |
     awk '
     {
         svc=$3
@@ -60,17 +56,13 @@ logs_services() {
 
 }
 
-#===============================================================================
-# ESPAÇO UTILIZADO PELO JOURNAL
-#===============================================================================
-
-logs_disk_usage() {
+logs_get_disk_usage() {
 
     local raw=""
     local usage="Não disponível"
 
     if ! command_exists journalctl; then
-        printf "Espaço Logs..........: journalctl não disponível\n"
+        printf "journalctl não disponível"
         return
     fi
 
@@ -92,39 +84,82 @@ logs_disk_usage() {
 
     fi
 
-    printf "Espaço Logs..........: %s\n" "$usage"
+    printf "%s" "$usage"
+
+}
+
+logs_get_total_errors() {
+
+    logs_get_errors | wc -l
+
+}
+
+logs_get_top_services() {
+
+    logs_get_services |
+    sort |
+    uniq -c |
+    sort -rn |
+    head -15
+
+}
+
+#----------------------------------------------------------------------------
+# APIs preparadas para integração do Core
+#----------------------------------------------------------------------------
+
+logs_get_oom_events() {
+
+    if command_exists journalctl; then
+
+        journalctl \
+            --since "24 hours ago" \
+            --no-pager \
+            2>/dev/null |
+        grep -Ei "Out of memory|Killed process" || true
+
+    fi
+
+}
+
+logs_get_kernel_errors() {
+
+    if command_exists journalctl; then
+
+        journalctl \
+            -k \
+            -p err \
+            --since "24 hours ago" \
+            --no-pager \
+            2>/dev/null
+
+    fi
 
 }
 
 #===============================================================================
-# TOTAL DE ERROS
+# CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
+
+logs_disk_usage() {
+
+    printf "Espaço Logs..........: %s\n" \
+        "$(logs_get_disk_usage)"
+
+}
 
 logs_total_errors() {
 
-    local total
-
-    total="$(logs_errors | wc -l)"
-
-    printf "Entradas de Erro.....: %s\n" "$total"
+    printf "Entradas de Erro.....: %s\n" \
+        "$(logs_get_total_errors)"
 
 }
-
-#===============================================================================
-# TOP SERVIÇOS COM ERROS
-#===============================================================================
 
 logs_top_services() {
 
     local services
 
-    services="$(
-        logs_services |
-        sort |
-        uniq -c |
-        sort -rn |
-        head -15
-    )"
+    services="$(logs_get_top_services)"
 
     printf "\n"
     printf "Top Serviços com Erros (24h)\n"
@@ -143,14 +178,8 @@ logs_top_services() {
 }
 
 #===============================================================================
-# EXECUÇÃO
+# CAMADA 3 - EXECUÇÃO
 #===============================================================================
-
-#
-# Função pública do módulo.
-#
-# Esta é a única função que deve ser chamada externamente.
-#
 
 logs_run() {
 
