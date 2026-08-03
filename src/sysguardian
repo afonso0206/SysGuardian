@@ -55,6 +55,36 @@ readonly HOSTNAME="$(hostname -s)"
 readonly APP_DIR="${DATA_DIR}"
 readonly MODULE_DIR="${DATA_DIR}/modules"
 readonly LIB_DIR="${DATA_DIR}/lib"
+#===============================================================================
+# CARREGAMENTO DOS MÓDULOS
+#===============================================================================
+
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/system.sh"
+
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/cpu.sh"
+
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/memory.sh"
+
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/disk.sh"
+
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/network.sh"
+
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/services.sh"
+
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/security.sh"
+
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/backup.sh"
+
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/logs.sh"
 
 readonly TMP_DIR="/tmp/sysguardian"
 
