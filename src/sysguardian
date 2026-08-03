@@ -399,50 +399,89 @@ check_cpu() {
 }
 
 check_memory() {
+
     log_entry "Memory" "HEADER" "Memória RAM e Swap"
-    
-    local mem_info=$(run_cmd free -m)
-    local total=$(echo "$mem_info" | awk '/^Mem:/{print $2}')
-    local used=$(echo "$mem_info" | awk '/^Mem:/{print $3}')
-    local avail=$(echo "$mem_info" | awk '/^Mem:/{print $7}')
-    local swap_total=$(echo "$mem_info" | awk '/^Swap:/{print $2}')
-    local swap_used=$(echo "$mem_info" | awk '/^Swap:/{print $3}')
 
-    local mem_pct=0
-    if [[ "$total" -gt 0 ]]; then
-        mem_pct=$(awk "BEGIN {printf \"%.1f\", ($used/$total)*100}")
-    fi
+    local total
+    local used
+    local avail
+    local mem_pct
+    local swap_total
+    local swap_used
+    local swap_pct
+    local oom_count
 
-    log_entry "Memory" "INFO" "Total: ${total}MB | Usada: ${used}MB (${mem_pct}%) | Disponível: ${avail}MB"
+    total="$(memory_get_total)"
+    used="$(memory_get_used)"
+    avail="$(memory_get_available)"
+    mem_pct="$(memory_get_usage_percent)"
+
+    swap_total="$(memory_get_swap_total)"
+    swap_used="$(memory_get_swap_used)"
+
+    log_entry "Memory" "INFO" \
+        "Total: ${total}MB | Usada: ${used}MB (${mem_pct}%) | Disponível: ${avail}MB"
 
     if safe_compare "$mem_pct" ">=" "95"; then
-        log_entry "Memory" "ERROR" "Uso de memória crítico: ${mem_pct}%"
+
+        log_entry "Memory" "ERROR" \
+            "Uso de memória crítico: ${mem_pct}%"
+
         score_sub "Memory" 20
+
     elif safe_compare "$mem_pct" ">=" "85"; then
-        log_entry "Memory" "WARN" "Uso de memória elevado: ${mem_pct}%"
+
+        log_entry "Memory" "WARN" \
+            "Uso de memória elevado: ${mem_pct}%"
+
         score_sub "Memory" 10
+
     else
-        log_entry "Memory" "OK" "Uso de memória saudável (${mem_pct}%)"
+
+        log_entry "Memory" "OK" \
+            "Uso de memória saudável (${mem_pct}%)"
+
     fi
 
-    if [[ "$swap_total" -gt 0 ]]; then
-        local swap_pct=$(awk "BEGIN {printf \"%.1f\", ($swap_used/$swap_total)*100}")
-        log_entry "Memory" "INFO" "Swap: ${swap_used}MB / ${swap_total}MB (${swap_pct}%)"
+    if [[ "$(safe_int "$swap_total")" -gt 0 ]]; then
+
+        swap_pct="$(awk "BEGIN {printf \"%.1f\", ($swap_used/$swap_total)*100}")"
+
+        log_entry "Memory" "INFO" \
+            "Swap: ${swap_used}MB / ${swap_total}MB (${swap_pct}%)"
+
         if safe_compare "$swap_pct" ">=" "50"; then
-            log_entry "Memory" "WARN" "Uso de swap elevado: ${swap_pct}%"
+
+            log_entry "Memory" "WARN" \
+                "Uso de swap elevado: ${swap_pct}%"
+
             score_sub "Memory" 5
+
         else
-            log_entry "Memory" "OK" "Uso de swap normal (${swap_pct}%)"
+
+            log_entry "Memory" "OK" \
+                "Uso de swap normal (${swap_pct}%)"
+
         fi
+
     fi
 
-    local oom_count=$(run_cmd dmesg 2>/dev/null | grep -ci 'out of memory' || echo "0")
+    oom_count="$(
+        run_cmd dmesg 2>/dev/null |
+        grep -ci 'out of memory' ||
+        echo "0"
+    )"
+
     if [[ "$(safe_int "$oom_count")" -gt 0 ]]; then
-        log_entry "Memory" "ERROR" "Detectados $oom_count eventos OOM (Out of Memory) no kernel"
-        score_sub "Memory" 15
-    fi
-}
 
+        log_entry "Memory" "ERROR" \
+            "Detectados $oom_count eventos OOM (Out of Memory) no kernel"
+
+        score_sub "Memory" 15
+
+    fi
+
+}
 check_disks_and_lvm() {
     log_entry "Disks" "HEADER" "Armazenamento e LVM"
     
