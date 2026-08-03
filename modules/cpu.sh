@@ -22,10 +22,10 @@ fi
 readonly SYSGUARDIAN_CPU_LOADED=1
 
 #===============================================================================
-# MODELO DO PROCESSADOR
+# CAMADA 1 - API DE COLETA (GETTERS)
 #===============================================================================
 
-cpu_model() {
+cpu_get_model() {
 
     local model="Desconhecido"
 
@@ -33,25 +33,17 @@ cpu_model() {
         model="$(grep -m1 "model name" /proc/cpuinfo | cut -d':' -f2- | xargs)"
     fi
 
-    printf "Modelo...............: %s\n" "$model"
+    printf "%s" "$model"
 
 }
 
-#===============================================================================
-# ARQUITETURA
-#===============================================================================
+cpu_get_architecture() {
 
-cpu_architecture() {
-
-    printf "Arquitetura..........: %s\n" "$(uname -m)"
+    uname -m
 
 }
 
-#===============================================================================
-# QUANTIDADE DE PROCESSADORES
-#===============================================================================
-
-cpu_count() {
+cpu_get_count() {
 
     local count="Desconhecido"
 
@@ -59,15 +51,11 @@ cpu_count() {
         count="$(nproc)"
     fi
 
-    printf "CPUs.................: %s\n" "$count"
+    printf "%s" "$count"
 
 }
 
-#===============================================================================
-# NÚCLEOS
-#===============================================================================
-
-cpu_cores() {
+cpu_get_cores() {
 
     local cores="Desconhecido"
 
@@ -75,15 +63,11 @@ cpu_cores() {
         cores="$(grep -c '^processor' /proc/cpuinfo)"
     fi
 
-    printf "Núcleos..............: %s\n" "$cores"
+    printf "%s" "$cores"
 
 }
 
-#===============================================================================
-# LOAD AVERAGE
-#===============================================================================
-
-cpu_load_average() {
+cpu_get_load_average() {
 
     local load="Desconhecido"
 
@@ -91,19 +75,75 @@ cpu_load_average() {
         load="$(cut -d' ' -f1-3 /proc/loadavg)"
     fi
 
-    printf "Load Average.........: %s\n" "$load"
+    printf "%s" "$load"
+
+}
+
+#
+# Esta função será utilizada futuramente pelo Core.
+# Por enquanto apenas disponibiliza a informação.
+#
+
+cpu_get_temperature() {
+
+    if command_exists sensors; then
+
+        sensors 2>/dev/null | \
+        awk '
+            /\+.*°C/ {
+                gsub(/\+/, "", $2)
+                gsub(/°C/, "", $2)
+                print $2
+                exit
+            }
+        '
+
+    fi
+
+}
+
+#===============================================================================
+# CAMADA 2 - APRESENTAÇÃO
+#===============================================================================
+
+cpu_model() {
+
+    printf "Modelo...............: %s\n" \
+        "$(cpu_get_model)"
+
+}
+
+cpu_architecture() {
+
+    printf "Arquitetura..........: %s\n" \
+        "$(cpu_get_architecture)"
+
+}
+
+cpu_count() {
+
+    printf "CPUs.................: %s\n" \
+        "$(cpu_get_count)"
+
+}
+
+cpu_cores() {
+
+    printf "Núcleos..............: %s\n" \
+        "$(cpu_get_cores)"
+
+}
+
+cpu_load_average() {
+
+    printf "Load Average.........: %s\n" \
+        "$(cpu_get_load_average)"
 
 }
 
 #===============================================================================
 # EXECUÇÃO
 #===============================================================================
-
-#
-# Função pública do módulo.
-#
-# Esta é a única função que deve ser chamada externamente.
-#
 
 cpu_run() {
 

@@ -22,50 +22,34 @@ fi
 readonly SYSGUARDIAN_SYSTEM_LOADED=1
 
 #===============================================================================
-# HOSTNAME
+# CAMADA 1 - API DE COLETA (GETTERS)
 #===============================================================================
 
-system_hostname() {
+system_get_hostname() {
 
-    printf "Hostname.............: %s\n" "$(hostname)"
+    hostname
 
 }
 
-#===============================================================================
-# SISTEMA OPERACIONAL
-#===============================================================================
+system_get_os() {
 
-system_os() {
-
-    printf "Sistema..............: %s\n" "$(detect_os)"
+    detect_os
 
 }
 
-#===============================================================================
-# KERNEL
-#===============================================================================
+system_get_kernel() {
 
-system_kernel() {
-
-    printf "Kernel...............: %s\n" "$(uname -r)"
+    uname -r
 
 }
 
-#===============================================================================
-# ARQUITETURA
-#===============================================================================
+system_get_architecture() {
 
-system_architecture() {
-
-    printf "Arquitetura..........: %s\n" "$(uname -m)"
+    uname -m
 
 }
 
-#===============================================================================
-# UPTIME
-#===============================================================================
-
-system_uptime() {
+system_get_uptime() {
 
     local uptime_info="Desconhecido"
 
@@ -73,34 +57,84 @@ system_uptime() {
         uptime_info="$(uptime -p 2>/dev/null || echo "Desconhecido")"
     fi
 
-    printf "Uptime...............: %s\n" "$uptime_info"
+    printf "%s" "$uptime_info"
+
+}
+
+system_get_datetime() {
+
+    date '+%d/%m/%Y %H:%M:%S'
+
+}
+
+system_get_user() {
+
+    printf "%s" "${SUDO_USER:-${USER:-Desconhecido}}"
+
+}
+
+# Opcional, mas será útil para o Core na PR-003
+system_get_reboot_required() {
+
+    [[ -f /var/run/reboot-required ]]
 
 }
 
 #===============================================================================
-# DATA E HORA
+# CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
+
+system_hostname() {
+
+    printf "Hostname.............: %s\n" \
+        "$(system_get_hostname)"
+
+}
+
+system_os() {
+
+    printf "Sistema..............: %s\n" \
+        "$(system_get_os)"
+
+}
+
+system_kernel() {
+
+    printf "Kernel...............: %s\n" \
+        "$(system_get_kernel)"
+
+}
+
+system_architecture() {
+
+    printf "Arquitetura..........: %s\n" \
+        "$(system_get_architecture)"
+
+}
+
+system_uptime() {
+
+    printf "Uptime...............: %s\n" \
+        "$(system_get_uptime)"
+
+}
 
 system_datetime() {
 
     printf "Data/Hora............: %s\n" \
-        "$(date '+%d/%m/%Y %H:%M:%S')"
+        "$(system_get_datetime)"
 
 }
-
-#===============================================================================
-# USUÁRIO
-#===============================================================================
 
 system_user() {
 
     printf "Usuário..............: %s\n" \
-        "${SUDO_USER:-${USER:-Desconhecido}}"
+        "$(system_get_user)"
 
 }
 
 #===============================================================================
-# EXECUÇÃO
+# CAMADA 3 - EXECUÇÃO
 #===============================================================================
 
 #

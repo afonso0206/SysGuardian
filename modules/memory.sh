@@ -22,128 +22,158 @@ fi
 readonly SYSGUARDIAN_MEMORY_LOADED=1
 
 #===============================================================================
-# MEMÓRIA TOTAL
+# CAMADA 1 - API DE COLETA (GETTERS)
 #===============================================================================
 
-memory_total() {
-
-    local total="Desconhecido"
+memory_get_total() {
 
     if file_exists "/proc/meminfo"; then
-        total="$(awk '/MemTotal:/ {printf "%.2f GB", $2/1024/1024}' /proc/meminfo)"
+        awk '/MemTotal:/ {printf "%.2f GB", $2/1024/1024}' /proc/meminfo
+    else
+        printf "Desconhecido"
     fi
-
-    printf "Memória Total........: %s\n" "$total"
 
 }
 
-#===============================================================================
-# MEMÓRIA DISPONÍVEL
-#===============================================================================
-
-memory_available() {
-
-    local available="Desconhecido"
+memory_get_available() {
 
     if file_exists "/proc/meminfo"; then
-        available="$(awk '/MemAvailable:/ {printf "%.2f GB", $2/1024/1024}' /proc/meminfo)"
+        awk '/MemAvailable:/ {printf "%.2f GB", $2/1024/1024}' /proc/meminfo
+    else
+        printf "Desconhecido"
     fi
-
-    printf "Memória Disponível...: %s\n" "$available"
 
 }
 
-#===============================================================================
-# MEMÓRIA UTILIZADA
-#===============================================================================
-
-memory_used() {
-
-    local total available used
+memory_get_used() {
 
     if file_exists "/proc/meminfo"; then
+
+        local total available used
 
         total="$(awk '/MemTotal:/ {print $2}' /proc/meminfo)"
         available="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)"
 
         used=$((total - available))
 
-        printf "Memória Utilizada....: %.2f GB\n" \
-            "$(awk "BEGIN {print $used/1024/1024}")"
+        awk "BEGIN {printf \"%.2f GB\", $used/1024/1024}"
 
     else
 
-        printf "Memória Utilizada....: Desconhecido\n"
+        printf "Desconhecido"
 
     fi
 
 }
 
-#===============================================================================
-# USO DA MEMÓRIA
-#===============================================================================
-
-memory_usage_percent() {
-
-    local total available
+memory_get_usage_percent() {
 
     if file_exists "/proc/meminfo"; then
+
+        local total available
 
         total="$(awk '/MemTotal:/ {print $2}' /proc/meminfo)"
         available="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)"
 
         awk -v t="$total" -v a="$available" \
-            'BEGIN {
-                printf "Uso da Memória......: %.1f%%\n", ((t-a)/t)*100
-            }'
+            'BEGIN {printf "%.1f", ((t-a)/t)*100}'
 
     else
 
-        printf "Uso da Memória......: Desconhecido\n"
+        printf "Desconhecido"
 
     fi
 
 }
 
-#===============================================================================
-# SWAP
-#===============================================================================
+memory_get_swap_total() {
 
-memory_swap() {
+    if file_exists "/proc/meminfo"; then
+        awk '/SwapTotal:/ {printf "%.2f GB", $2/1024/1024}' /proc/meminfo
+    else
+        printf "Desconhecido"
+    fi
 
-    local total used free
+}
+
+memory_get_swap_free() {
+
+    if file_exists "/proc/meminfo"; then
+        awk '/SwapFree:/ {printf "%.2f GB", $2/1024/1024}' /proc/meminfo
+    else
+        printf "Desconhecido"
+    fi
+
+}
+
+memory_get_swap_used() {
 
     if file_exists "/proc/meminfo"; then
 
-        total="$(awk '/SwapTotal:/ {printf "%.2f", $2/1024/1024}' /proc/meminfo)"
-        free="$(awk '/SwapFree:/ {printf "%.2f", $2/1024/1024}' /proc/meminfo)"
+        local total free
 
-        used="$(awk -v t="$total" -v f="$free" \
-            'BEGIN {printf "%.2f", t-f}')"
+        total="$(awk '/SwapTotal:/ {print $2}' /proc/meminfo)"
+        free="$(awk '/SwapFree:/ {print $2}' /proc/meminfo)"
 
-        printf "Swap Total...........: %s GB\n" "$total"
-        printf "Swap Utilizada.......: %s GB\n" "$used"
-        printf "Swap Livre...........: %s GB\n" "$free"
+        awk -v t="$total" -v f="$free" \
+            'BEGIN {printf "%.2f GB", (t-f)/1024/1024}'
 
     else
 
-        printf "Swap Total...........: Desconhecido\n"
-        printf "Swap Utilizada.......: Desconhecido\n"
-        printf "Swap Livre...........: Desconhecido\n"
+        printf "Desconhecido"
 
     fi
 
 }
 
 #===============================================================================
-# EXECUÇÃO
+# CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
 
-#
-# Função pública do módulo.
-#
-# Esta é a única função que deve ser chamada externamente.
-#
+memory_total() {
+
+    printf "Memória Total........: %s\n" \
+        "$(memory_get_total)"
+
+}
+
+memory_available() {
+
+    printf "Memória Disponível...: %s\n" \
+        "$(memory_get_available)"
+
+}
+
+memory_used() {
+
+    printf "Memória Utilizada....: %s\n" \
+        "$(memory_get_used)"
+
+}
+
+memory_usage_percent() {
+
+    printf "Uso da Memória.......: %s%%\n" \
+        "$(memory_get_usage_percent)"
+
+}
+
+memory_swap() {
+
+    printf "Swap Total...........: %s\n" \
+        "$(memory_get_swap_total)"
+
+    printf "Swap Utilizada.......: %s\n" \
+        "$(memory_get_swap_used)"
+
+    printf "Swap Livre...........: %s\n" \
+        "$(memory_get_swap_free)"
+
+}
+
+#===============================================================================
+# CAMADA 3 - EXECUÇÃO
+#===============================================================================
 
 memory_run() {
 

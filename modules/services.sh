@@ -22,7 +22,7 @@ fi
 readonly SYSGUARDIAN_SERVICES_LOADED=1
 
 #===============================================================================
-# SYSTEMD DISPONÍVEL
+# CAMADA 1 - API DE COLETA (GETTERS)
 #===============================================================================
 
 services_has_systemd() {
@@ -31,11 +31,7 @@ services_has_systemd() {
 
 }
 
-#===============================================================================
-# STATUS DE UM SERVIÇO
-#===============================================================================
-
-services_status() {
+services_get_status() {
 
     local service="$1"
 
@@ -61,112 +57,132 @@ services_status() {
 
 }
 
+services_get_systemd() {
+
+    if services_has_systemd; then
+        printf "Sim"
+    else
+        printf "Não"
+    fi
+
+}
+
+services_get_active_count() {
+
+    if services_has_systemd; then
+
+        systemctl list-units \
+            --type=service \
+            --state=running \
+            --no-legend 2>/dev/null |
+        wc -l
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+services_get_failed_count() {
+
+    if services_has_systemd; then
+
+        systemctl list-units \
+            --type=service \
+            --state=failed \
+            --no-legend 2>/dev/null |
+        wc -l
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+services_get_failed_services() {
+
+    if services_has_systemd; then
+
+        systemctl list-units \
+            --type=service \
+            --state=failed \
+            --no-legend 2>/dev/null
+
+    fi
+
+}
+
+services_get_ssh() {
+
+    services_get_status ssh
+
+}
+
+services_get_cron() {
+
+    services_get_status cron
+
+}
+
+services_get_networkmanager() {
+
+    services_get_status NetworkManager
+
+}
+
 #===============================================================================
-# SYSTEMD
+# CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
 
 services_systemd_status() {
 
-    local status="Não"
-
-    if services_has_systemd; then
-        status="Sim"
-    fi
-
-    printf "Systemd..............: %s\n" "$status"
+    printf "Systemd..............: %s\n" \
+        "$(services_get_systemd)"
 
 }
-
-#===============================================================================
-# SERVIÇOS ATIVOS
-#===============================================================================
 
 services_active() {
 
-    local active="Desconhecido"
-
-    if services_has_systemd; then
-
-        active="$(
-            systemctl list-units \
-                --type=service \
-                --state=running \
-                --no-legend 2>/dev/null |
-            wc -l
-        )"
-
-    fi
-
-    printf "Serviços Ativos......: %s\n" "$active"
+    printf "Serviços Ativos......: %s\n" \
+        "$(services_get_active_count)"
 
 }
-
-#===============================================================================
-# SERVIÇOS FALHOS
-#===============================================================================
 
 services_failed() {
 
-    local failed="Desconhecido"
-
-    if services_has_systemd; then
-
-        failed="$(
-            systemctl list-units \
-                --type=service \
-                --state=failed \
-                --no-legend 2>/dev/null |
-            wc -l
-        )"
-
-    fi
-
-    printf "Serviços Falhos......: %s\n" "$failed"
+    printf "Serviços Falhos......: %s\n" \
+        "$(services_get_failed_count)"
 
 }
-
-#===============================================================================
-# SSH
-#===============================================================================
 
 services_ssh() {
 
     printf "SSH..................: %s\n" \
-        "$(services_status ssh)"
+        "$(services_get_ssh)"
 
 }
-
-#===============================================================================
-# CRON
-#===============================================================================
 
 services_cron() {
 
     printf "Cron.................: %s\n" \
-        "$(services_status cron)"
+        "$(services_get_cron)"
 
 }
-
-#===============================================================================
-# NETWORKMANAGER
-#===============================================================================
 
 services_networkmanager() {
 
     printf "NetworkManager.......: %s\n" \
-        "$(services_status NetworkManager)"
+        "$(services_get_networkmanager)"
 
 }
 
 #===============================================================================
-# EXECUÇÃO
+# CAMADA 3 - EXECUÇÃO
 #===============================================================================
-
-#
-# Função pública do módulo.
-#
-# Esta é a única função que deve ser chamada externamente.
-#
 
 services_run() {
 
