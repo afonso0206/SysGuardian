@@ -252,32 +252,65 @@ classify_disk() {
 #===============================================================================
 
 check_system_and_boot() {
+
     log_entry "System" "HEADER" "Informações do Sistema e Boot"
-    
-    local os_info=$(run_cmd cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'"' -f2)
-    local kernel=$(run_cmd uname -r)
-    local uptime_str=$(run_cmd uptime -p 2>/dev/null | sed 's/up //' || run_cmd uptime | awk -F'up ' '{print $2}' | awk -F',' '{print $1}')
-    
+
+    local os_info
+    local kernel
+    local uptime_str
+
+    os_info="$(system_get_os)"
+    kernel="$(system_get_kernel)"
+    uptime_str="$(system_get_uptime)"
+
     log_entry "System" "INFO" "SO: $os_info"
     log_entry "System" "INFO" "Kernel: $kernel"
     log_entry "System" "INFO" "Uptime: $uptime_str"
 
-    if command -v systemd-analyze &>/dev/null; then
-        local boot_time_raw=$(run_cmd systemd-analyze 2>/dev/null | grep -oE 'startup in [0-9]+(\.[0-9]+)?(ms|s|min|h)' | head -1)
-        log_entry "System" "INFO" "Tempo de Boot: ${boot_time_raw:-Não disponível}"
-        
-        log_entry "System" "SUB" "5 Serviços mais lentos no boot"
-        run_cmd systemd-analyze blame 2>/dev/null | head -5 | while read -r line; do
-            [[ -n "$line" ]] && log_entry "System" "INFO" "  $line"
-        done
-        
-        log_entry "System" "SUB" "Cadeia crítica do boot"
-        run_cmd systemd-analyze critical-chain 2>/dev/null | head -8 | while read -r line; do
-            [[ -n "$line" ]] && log_entry "System" "INFO" "  $line"
-        done
+    if system_get_reboot_required; then
+        log_entry "System" "WARN" "Reinicialização pendente"
     fi
-}
 
+    if command_exists systemd-analyze; then
+
+        local boot_time_raw
+
+        boot_time_raw="$(
+            run_cmd systemd-analyze 2>/dev/null |
+            grep -oE 'startup in [0-9]+(\.[0-9]+)?(ms|s|min|h)' |
+            head -1
+        )"
+
+        log_entry "System" "INFO" \
+            "Tempo de Boot: ${boot_time_raw:-Não disponível}"
+
+        log_entry "System" "SUB" \
+            "5 Serviços mais lentos no boot"
+
+        run_cmd systemd-analyze blame 2>/dev/null |
+        head -5 |
+        while read -r line; do
+
+            [[ -n "$line" ]] &&
+                log_entry "System" "INFO" "  $line"
+
+        done
+
+        log_entry "System" "SUB" \
+            "Cadeia crítica do boot"
+
+        run_cmd systemd-analyze critical-chain 2>/dev/null |
+        head -8 |
+        while read -r line; do
+
+            [[ -n "$line" ]] &&
+                log_entry "System" "INFO" "  $line"
+
+        done
+
+    fi
+
+}
 check_cpu() {
     log_entry "CPU" "HEADER" "Processador (CPU)"
     
