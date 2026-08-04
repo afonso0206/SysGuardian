@@ -30,13 +30,17 @@ system_get_hostname() {
     hostname
 
 }
-
 system_get_os() {
 
-    detect_os
+    if [[ -r /etc/os-release ]]; then
+        # shellcheck disable=SC1091
+        . /etc/os-release
+        printf "%s\n" "${PRETTY_NAME:-Sistema desconhecido}"
+    else
+        printf "%s\n" "Sistema desconhecido"
+    fi
 
 }
-
 system_get_kernel() {
 
     uname -r

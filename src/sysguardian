@@ -55,6 +55,13 @@ readonly HOSTNAME="$(hostname -s)"
 readonly APP_DIR="${DATA_DIR}"
 readonly MODULE_DIR="${DATA_DIR}/modules"
 readonly LIB_DIR="${DATA_DIR}/lib"
+
+#===============================================================================
+# CARREGAMENTO DAS BIBLIOTECAS
+#===============================================================================
+
+# shellcheck disable=SC1091
+# source "${LIB_DIR}/core.sh"
 #===============================================================================
 # CARREGAMENTO DOS MÓDULOS
 #===============================================================================
@@ -318,10 +325,12 @@ check_cpu() {
     local model
     local cores
     local load
+    local temperature
 
     model="$(cpu_get_model)"
     cores="$(cpu_get_cores)"
     load="$(cpu_get_load_average)"
+    temperature="$(cpu_get_temperature)"
 
     [[ -z "$model" ]] && model="Não detectado"
     [[ -z "$cores" ]] && cores="Desconhecido"
@@ -331,68 +340,36 @@ check_cpu() {
     log_entry "CPU" "INFO" "Núcleos: $cores"
     log_entry "CPU" "INFO" "Carga: $load"
 
-    if command_exists sensors; then
+    if [[ -n "$temperature" ]]; then
 
-        local temp_data
-        local max_temp=0
-        local temp_found=0
+        log_entry "CPU" "INFO" \
+            "Temperatura: ${temperature}°C"
 
-        temp_data="$(run_cmd sensors 2>/dev/null)"
+        if safe_compare "$temperature" ">=" "85"; then
 
-        while IFS= read -r line; do
+            log_entry "CPU" "ERROR" \
+                "Temperatura crítica: ${temperature}°C"
 
-            if [[ "$line" =~ (Core|Package|Tctl|Tdie).*:\ +([0-9]+\.?[0-9]*)°C ]]; then
+            score_sub "CPU" 15
 
-                local sensor_name="${BASH_REMATCH[1]}"
-                local temp_val="${BASH_REMATCH[2]}"
+        elif safe_compare "$temperature" ">=" "75"; then
 
-                log_entry "CPU" "INFO" \
-                    "Temp $sensor_name: ${temp_val}°C"
+            log_entry "CPU" "WARN" \
+                "Temperatura elevada: ${temperature}°C"
 
-                temp_found=1
-
-                if safe_compare "$temp_val" ">" "$max_temp"; then
-                    max_temp="$temp_val"
-                fi
-
-            fi
-
-        done <<< "$temp_data"
-
-        if [[ "$temp_found" -eq 1 ]]; then
-
-            if safe_compare "$max_temp" ">=" "85"; then
-
-                log_entry "CPU" "ERROR" \
-                    "Temperatura crítica: ${max_temp}°C"
-
-                score_sub "CPU" 15
-
-            elif safe_compare "$max_temp" ">=" "75"; then
-
-                log_entry "CPU" "WARN" \
-                    "Temperatura elevada: ${max_temp}°C"
-
-                score_sub "CPU" 5
-
-            else
-
-                log_entry "CPU" "OK" \
-                    "Temperaturas dentro da faixa normal (${max_temp}°C)"
-
-            fi
+            score_sub "CPU" 5
 
         else
 
-            log_entry "CPU" "INFO" \
-                "Nenhuma temperatura de CPU detectada pelos sensores"
+            log_entry "CPU" "OK" \
+                "Temperatura dentro da faixa normal (${temperature}°C)"
 
         fi
 
     else
 
         log_entry "CPU" "INFO" \
-            "Temperatura não verificada (lm-sensors não instalado)"
+            "Temperatura não disponível"
 
     fi
 
@@ -419,6 +396,12 @@ check_memory() {
     swap_total="$(memory_get_swap_total)"
     swap_used="$(memory_get_swap_used)"
 
+    if memory_has_swap; then
+        swap_pct="$(memory_get_swap_usage_percent)"
+    else
+        swap_pct="0.0"
+    fi
+
     log_entry "Memory" "INFO" \
         "Total: ${total}MB | Usada: ${used}MB (${mem_pct}%) | Disponível: ${avail}MB"
 
@@ -443,28 +426,28 @@ check_memory() {
 
     fi
 
-    if [[ "$(safe_int "$swap_total")" -gt 0 ]]; then
+if memory_has_swap; then
 
-        swap_pct="$(awk "BEGIN {printf \"%.1f\", ($swap_used/$swap_total)*100}")"
+    swap_pct="$(memory_get_swap_usage_percent)"
 
-        log_entry "Memory" "INFO" \
+    log_entry "Memory" "INFO" \
             "Swap: ${swap_used}MB / ${swap_total}MB (${swap_pct}%)"
 
-        if safe_compare "$swap_pct" ">=" "50"; then
+    if safe_compare "$swap_pct" ">=" "50"; then
 
-            log_entry "Memory" "WARN" \
+        log_entry "Memory" "WARN" \
                 "Uso de swap elevado: ${swap_pct}%"
 
-            score_sub "Memory" 5
+       score_sub "Memory" 5
 
-        else
+    else
 
             log_entry "Memory" "OK" \
                 "Uso de swap normal (${swap_pct}%)"
 
-        fi
-
     fi
+
+fi
 
     oom_count="$(
         run_cmd dmesg 2>/dev/null |
@@ -486,16 +469,30 @@ check_disks_and_lvm() {
     log_entry "Disks" "HEADER" "Armazenamento e LVM"
     
     log_entry "Disks" "SUB" "Discos Físicos (excluindo loop/ram/device-mapper)"
-    local disks=$(get_physical_disks)
-    while read -r name size model rota tran; do
-        [[ -z "$name" ]] && continue
-        local dev="/dev/$name"
-        local dtype=$(classify_disk "$dev")
-        log_entry "Disks" "INFO" "$dev ($dtype) - $size - $model"
-    done <<< "$disks"
+    local disks
 
+    disks="$(disk_get_physical_disks)"
+
+    while read -r name size model rota tran; do
+
+        [[ -z "$name" ]] && continue
+
+        local dev="/dev/$name"
+        local dtype
+
+        dtype="$(classify_disk "$dev")"
+
+        log_entry "Disks" "INFO" \
+            "$dev ($dtype) - $size - $model"
+
+    done <<< "$disks"
     log_entry "Disks" "SUB" "Uso de Partições"
-    local df_output=$(run_cmd df -hT --output=source,fstype,size,used,avail,pcent,target 2>/dev/null | grep '^/dev/')
+    local df_output
+
+df_output="$(
+    disk_get_partition_usage |
+    grep '^/dev/'
+)"
     if [[ -n "$df_output" ]]; then
         echo "$df_output" | while IFS= read -r line; do
             [[ -z "$line" ]] && continue
@@ -659,26 +656,48 @@ check_network() {
         fi
     done
 
-    local gateway=$(run_cmd ip route 2>/dev/null | awk '/default/{print $3; exit}')
-    if [[ -n "$gateway" ]] && ping -c 1 -W 2 "$gateway" &>/dev/null; then
-        log_entry "Network" "OK" "Gateway $gateway acessível"
-    else
-        log_entry "Network" "ERROR" "Gateway inacessível"
-        score_sub "Network" 10
-    fi
+    local gateway
 
-    if ping -c 1 -W 3 8.8.8.8 &>/dev/null; then
-        log_entry "Network" "OK" "Internet OK"
-    else
-        log_entry "Network" "ERROR" "Sem internet"
-        score_sub "Network" 10
-    fi
+    gateway="$(network_get_gateway)"
 
-    if host google.com &>/dev/null || nslookup google.com &>/dev/null; then
-        log_entry "Network" "OK" "Resolução DNS funcionando"
+    if network_ping_gateway; then
+
+        log_entry "Network" "OK" \
+            "Gateway $gateway acessível"
+
     else
-        log_entry "Network" "ERROR" "Falha na resolução DNS"
+
+        log_entry "Network" "ERROR" \
+            "Gateway inacessível"
+
         score_sub "Network" 10
+
+    fi
+if network_ping_internet; then
+
+    log_entry "Network" "OK" \
+        "Internet OK"
+
+else
+
+    log_entry "Network" "ERROR" \
+        "Sem internet"
+
+    score_sub "Network" 10
+    fi 
+
+    if network_check_dns; then
+
+        log_entry "Network" "OK" \
+            "Resolução DNS funcionando"
+
+    else
+
+        log_entry "Network" "ERROR" \
+            "Falha na resolução DNS"
+
+        score_sub "Network" 10
+
     fi
 }
 
@@ -762,34 +781,53 @@ check_services_and_security() {
 
 check_backup() {
     log_entry "Backup" "HEADER" "Rotinas de Backup"
-    
-    local backup_mount="/backup"
-    if ! mountpoint -q "$backup_mount" 2>/dev/null; then
-        backup_mount=$(run_cmd df -h 2>/dev/null | awk '/\/dev\/sd[a-z]/ && $6 != "/" {print $6; exit}')
-    fi
+    local backup_mount
+
+    backup_mount="$(backup_get_directory)"
 
     if [[ -n "$backup_mount" && -d "$backup_mount" ]]; then
+
         log_entry "Backup" "INFO" "Diretório de backup identificado: $backup_mount"
-        local recent=$(run_cmd find "$backup_mount" -type f \( -name "*.tar*" -o -name "*.zip" -o -name "*.bak" -o -name "*.sql" -o -name "*.borg" -o -name "*.restic" \) -mtime -7 2>/dev/null | wc -l || echo "0")
+
+        local recent
+
+        recent="$(backup_get_recent_count)"  
+
         if [[ "$(safe_int "$recent")" -gt 0 ]]; then
-            log_entry "Backup" "OK" "Encontrados $recent arquivos de backup nos últimos 7 dias"
+
+            log_entry "Backup" "OK" \
+                "Encontrados $recent arquivos de backup nos últimos 7 dias"
+
         else
-            log_entry "Backup" "WARN" "Nenhum backup recente encontrado"
+
+           log_entry "Backup" "WARN" \
+                "Nenhum backup recente encontrado"
+
             score_sub "Backup" 15
+
         fi
+
     else
         log_entry "Backup" "WARN" "Ponto de montagem de backup não identificado"
         score_sub "Backup" 10
     fi
 
-    local cron_jobs=$(run_cmd sudo crontab -l 2>/dev/null | grep -ciE 'backup|rsync|borg|restic|duplicati' || echo "0")
-    local cron_daily=$(run_cmd grep -rlE 'backup|rsync|borg|restic' /etc/cron.daily /etc/cron.weekly 2>/dev/null | wc -l || echo "0")
-    local timers=$(run_cmd systemctl list-timers --all 2>/dev/null | grep -ciE 'backup|rsync|borg|restic' || echo "0")
-    
-    if [[ "$(safe_int "$cron_jobs")" -gt 0 || "$(safe_int "$cron_daily")" -gt 0 || "$(safe_int "$timers")" -gt 0 ]]; then
-        log_entry "Backup" "OK" "Rotinas de backup agendadas detectadas (cron/timers)"
+    local cron_jobs
+    local timers
+
+    cron_jobs="$(backup_get_cron_jobs)"
+    timers="$(backup_get_timers)"
+
+    if [[ "$(safe_int "$cron_jobs")" -gt 0 || \
+      "$(safe_int "$timers")" -gt 0 ]]; then
+
+       log_entry "Backup" "OK" "Rotinas de backup agendadas detectadas (cron/timers)"
+
     else
-        log_entry "Backup" "WARN" "Nenhuma rotina de backup agendada encontrada"
+
+        log_entry "Backup" "WARN" \
+            "Nenhuma rotina de backup agendada encontrada"
+
         score_sub "Backup" 10
     fi
 
@@ -807,36 +845,23 @@ check_logs() {
         log_entry "Logs" "INFO" "journalctl não disponível"
         return
     fi
+    local disk_usage
 
-    # CORREÇÃO: Parser do journalctl --disk-usage para diferentes formatos
-    local disk_usage_raw=$(run_cmd journalctl --disk-usage 2>/dev/null)
-    local disk_usage=""
-    if [[ -n "$disk_usage_raw" ]]; then
-        # Formato pode ser: "Journals take up 1.2G on disk." ou "Archived/active journal: 1.2G"
-        disk_usage=$(echo "$disk_usage_raw" | awk '{
-            for(i=1;i<=NF;i++) {
-                if ($i ~ /^[0-9]+\.?[0-9]*[KMGT]$/) {
-                    print $(i-1), $i
-                    exit
-                }
-            }
-        }')
-        if [[ -z "$disk_usage" ]]; then
-            disk_usage="$disk_usage_raw"
-        fi
-    fi
-    log_entry "Logs" "INFO" "Espaço em disco usado pelos logs: ${disk_usage:-Não disponível}"
+    disk_usage="$(logs_get_disk_usage)"
 
-    log_entry "Logs" "SUB" "Top 15 Serviços com Erros (últimas 24h)"
-    local errors=$(run_cmd journalctl -p err --since "24 hours ago" --no-pager -o short-iso 2>/dev/null | awk '{
-        svc=$3;
-        gsub(/\[.*/, "", svc);
-        gsub(/:$/, "", svc);
-        if (svc != "" && svc != "kernel") print svc;
-    }' | sort | uniq -c | sort -rn | head -15)
-    
-    local total_errs=$(run_cmd journalctl -p err --since "24 hours ago" --no-pager 2>/dev/null | wc -l || echo "0")
-    log_entry "Logs" "INFO" "Total de entradas de erro: $total_errs"
+    log_entry "Logs" "INFO" \
+        "Espaço em disco usado pelos logs: ${disk_usage:-Não disponível}"
+    log_entry "Logs" "SUB" \
+        "Top 15 Serviços com Erros (últimas 24h)"
+
+    local errors
+
+    errors="$(logs_get_top_services)"local total_errs
+
+total_errs="$(logs_get_total_errors)"
+
+log_entry "Logs" "INFO" \
+   "Total de entradas de erro: $total_errs"
 
     if [[ "$(safe_int "$total_errs")" -gt 100 ]]; then
         log_entry "Logs" "WARN" "Volume elevado de erros no journal"
