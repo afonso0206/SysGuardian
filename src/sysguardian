@@ -191,18 +191,23 @@ safe_compare() {
         else exit 1
     }'
 }
-
 run_cmd() {
-    local cmd_str="$*"
-    local cmd_hash
-    cmd_hash=$(echo "$cmd_str" | md5sum | cut -d' ' -f1)
-    
-    if [[ -z "${CMD_CACHE[$cmd_hash]:-}" ]]; then
-        CMD_CACHE[$cmd_hash]=$(eval "$cmd_str" 2>/dev/null || echo "")
-    fi
-    echo "${CMD_CACHE[$cmd_hash]}"
-}
 
+    local cmd_hash
+
+    cmd_hash="$(printf '%q ' "$@" | md5sum | cut -d' ' -f1)"
+
+    if [[ -z "${CMD_CACHE[$cmd_hash]:-}" ]]; then
+
+        CMD_CACHE["$cmd_hash"]="$(
+            "$@" 2>/dev/null || true
+        )"
+
+    fi
+
+    printf '%s\n' "${CMD_CACHE[$cmd_hash]}"
+
+}
 score_sub() {
     local cat="$1"
     local points="$2"
@@ -553,44 +558,67 @@ if safe_compare "$free_num" "<" "1.0" && [[ "$is_thin" -eq 0 ]]; then
         fi
         
         log_entry "LVM" "SUB" "Logical Volumes (Detalhes)"
-        local lvs_output=$(run_cmd lvs --noheadings --nosuffix --units g -o lv_name,vg_name,lv_size,data_percent,metadata_percent,lv_path 2>/dev/null)
+local lvs_output
+
+lvs_output="$(
+    run_cmd lvs \
+        --separator '|' \
+        --noheadings \
+        --nosuffix \
+        --units g \
+        -o lv_name,vg_name,lv_size,data_percent,metadata_percent,lv_path \
+        2>/dev/null
+)"
+
         if [[ -n "$lvs_output" ]]; then
-            echo "$lvs_output" | while read -r lv vg size data_pct meta_pct path; do
-                [[ -z "$lv" ]] && continue
-                # Sanitizar valores
-                lv=$(echo "$lv" | xargs)
-                vg=$(echo "$vg" | xargs)
-                size=$(echo "$size" | xargs)
-                data_pct=$(echo "$data_pct" | xargs)
-                meta_pct=$(echo "$meta_pct" | xargs)
-                path=$(echo "$path" | xargs)
-                
-                log_entry "LVM" "INFO" "LV: $lv ($vg) | Size: ${size}G | Data: ${data_pct:-N/A}% | Meta: ${meta_pct:-N/A}% | Path: $path"
-# Verificar uso de dados apenas se data_pct for realmente numérico
-if [[ "$data_pct" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+echo "$lvs_output" | while IFS= read -r line; do
 
-    local d_pct
+    [[ -z "$line" ]] && continue
 
-    d_pct="$(safe_int "$data_pct")"
+    lv=$(printf '%s\n' "$line" | cut -d'|' -f1 | xargs)
+    vg=$(printf '%s\n' "$line" | cut -d'|' -f2 | xargs)
+    size=$(printf '%s\n' "$line" | cut -d'|' -f3 | xargs)
+    data_pct=$(printf '%s\n' "$line" | cut -d'|' -f4 | xargs)
+    meta_pct=$(printf '%s\n' "$line" | cut -d'|' -f5 | xargs)
+    path=$(printf '%s\n' "$line" | cut -d'|' -f6 | xargs)
 
-    if [[ "$d_pct" -ge 90 ]]; then
+    [[ -z "$data_pct" ]] && data_pct="N/A"
+    [[ -z "$meta_pct" ]] && meta_pct="N/A"
+if [[ "$data_pct" == "N/A" && "$meta_pct" == "N/A" ]]; then
 
-        log_entry "LVM" "ERROR" \
-            "LV $lv com uso de dados crítico: ${data_pct}%"
+    log_entry "LVM" "INFO" \
+        "LV: $lv ($vg) | Size: ${size}G | Path: $path"
 
-        score_sub "LVM" 10
+else
 
-    elif [[ "$d_pct" -ge 80 ]]; then
+    log_entry "LVM" "INFO" \
+        "LV: $lv ($vg) | Size: ${size}G | Data: ${data_pct}% | Meta: ${meta_pct}% | Path: $path"
 
-        log_entry "LVM" "WARN" \
-            "LV $lv com uso de dados elevado: ${data_pct}%"
+fi
+    if [[ "$data_pct" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
 
-        score_sub "LVM" 5
+        local d_pct
+        d_pct="$(safe_int "$data_pct")"
+
+        if [[ "$d_pct" -ge 90 ]]; then
+
+            log_entry "LVM" "ERROR" \
+                "LV $lv com uso de dados crítico: ${data_pct}%"
+
+            score_sub "LVM" 10
+
+        elif [[ "$d_pct" -ge 80 ]]; then
+
+            log_entry "LVM" "WARN" \
+                "LV $lv com uso de dados elevado: ${data_pct}%"
+
+            score_sub "LVM" 5
+
+        fi
 
     fi
 
-fi
-            done
+done    
         fi
     fi
 }
