@@ -167,6 +167,61 @@ backup_get_status() {
 
 }
 
+#----------------------------------------------------------------------------
+# APIs adicionais para integração do Core (PR-004)
+#----------------------------------------------------------------------------
+
+backup_get_last_backup() {
+
+    local backup_dir
+
+    backup_dir="$(backup_get_default_directory)"
+
+    if [[ -n "${backup_dir:-}" ]] &&
+       directory_exists "$backup_dir" &&
+       command_exists find; then
+
+        find "$backup_dir" \
+            -type f \
+            -printf '%T@ %p\n' \
+            2>/dev/null |
+        sort -nr |
+        head -1 |
+        cut -d' ' -f2-
+
+    fi
+
+}
+
+backup_get_total_backups() {
+
+    local backup_dir
+
+    backup_dir="$(backup_get_default_directory)"
+
+    if [[ -n "${backup_dir:-}" ]] &&
+       directory_exists "$backup_dir" &&
+       command_exists find; then
+
+        find "$backup_dir" \
+            -type f \
+            2>/dev/null |
+        wc -l
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+backup_has_recent_backup() {
+
+    [[ "$(backup_get_recent_count)" -gt 0 ]]
+
+}
+
 #===============================================================================
 # CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
