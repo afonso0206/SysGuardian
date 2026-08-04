@@ -137,6 +137,68 @@ logs_get_kernel_errors() {
 
 }
 
+#----------------------------------------------------------------------------
+# APIs adicionais para integração do Core (PR-004)
+#----------------------------------------------------------------------------
+
+logs_get_warning_count() {
+
+    if command_exists journalctl; then
+
+        journalctl \
+            -p warning \
+            --since "24 hours ago" \
+            --no-pager \
+            2>/dev/null |
+        wc -l
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+logs_get_critical_count() {
+
+    if command_exists journalctl; then
+
+        journalctl \
+            -p crit \
+            --since "24 hours ago" \
+            --no-pager \
+            2>/dev/null |
+        wc -l
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+logs_get_boot_errors() {
+
+    if command_exists journalctl; then
+
+        journalctl \
+            -b \
+            -p err \
+            --no-pager \
+            2>/dev/null
+
+    fi
+
+}
+
+logs_has_recent_errors() {
+
+    [[ "$(logs_get_total_errors)" -gt 0 ]]
+
+}
+
 #===============================================================================
 # CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
