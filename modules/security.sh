@@ -175,6 +175,128 @@ security_get_ssh_root_login() {
 
 }
 
+#----------------------------------------------------------------------------
+# APIs adicionais para integração do Core (PR-004)
+#----------------------------------------------------------------------------
+
+security_is_ssh_active() {
+
+    local svc
+
+    if command_exists systemctl; then
+
+        for svc in ssh sshd; do
+
+            if systemctl is-active --quiet "$svc" 2>/dev/null; then
+                return 0
+            fi
+
+        done
+
+        if systemctl is-active --quiet ssh.socket 2>/dev/null; then
+            return 0
+        fi
+
+    fi
+
+    if command_exists ss; then
+
+        ss -tln 2>/dev/null |
+        grep -qE ':22([[:space:]]|$)' &&
+        return 0
+
+    fi
+
+    return 1
+
+}
+
+security_is_fail2ban_active() {
+
+    command_exists systemctl &&
+    systemctl is-active --quiet fail2ban
+
+}
+
+security_is_auditd_active() {
+
+    command_exists systemctl &&
+    systemctl is-active --quiet auditd
+
+}
+
+security_get_pending_updates() {
+
+    if command_exists apt-get; then
+
+        apt-get -s upgrade 2>/dev/null |
+        grep -c '^Inst' || true
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+security_get_security_updates() {
+
+    if command_exists apt-get; then
+
+        apt-get -s upgrade 2>/dev/null |
+        grep -ci 'security' || true
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+security_get_kernel_updates() {
+
+    if command_exists apt-get; then
+
+        apt-get -s upgrade 2>/dev/null |
+        grep -ciE 'linux-image|linux-headers' || true
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+security_get_suid_files() {
+
+    find /usr /etc \
+        -perm -4000 \
+        -type f \
+        2>/dev/null |
+    wc -l
+
+}
+
+security_get_world_writable() {
+
+    find /usr /etc \
+        -perm -0002 \
+        -type f \
+        2>/dev/null |
+    wc -l
+
+}
+
+security_get_sudo_users() {
+
+    getent group sudo |
+    cut -d: -f4
+
+}
+
 #===============================================================================
 # CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
