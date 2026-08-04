@@ -164,6 +164,172 @@ network_get_state() {
 }
 
 #===============================================================================
+# API EXPANDIDA (PR-004)
+#===============================================================================
+
+network_get_interfaces() {
+
+    if command_exists ip; then
+
+        ip -o link show |
+        awk -F': ' '{print $2}' |
+        cut -d'@' -f1
+
+    fi
+
+}
+
+network_get_speed() {
+
+    local iface
+
+    iface="$(network_get_default_interface)"
+
+    if [[ -n "$iface" ]] &&
+       file_exists "/sys/class/net/${iface}/speed"; then
+
+        cat "/sys/class/net/${iface}/speed" 2>/dev/null || true
+
+    else
+
+        printf "N/A"
+
+    fi
+
+}
+
+network_get_rx_errors() {
+
+    local iface
+
+    iface="$(network_get_default_interface)"
+
+    if [[ -n "$iface" ]] &&
+       file_exists "/sys/class/net/${iface}/statistics/rx_errors"; then
+
+        cat "/sys/class/net/${iface}/statistics/rx_errors"
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+network_get_tx_errors() {
+
+    local iface
+
+    iface="$(network_get_default_interface)"
+
+    if [[ -n "$iface" ]] &&
+       file_exists "/sys/class/net/${iface}/statistics/tx_errors"; then
+
+        cat "/sys/class/net/${iface}/statistics/tx_errors"
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+network_get_rx_drops() {
+
+    local iface
+
+    iface="$(network_get_default_interface)"
+
+    if [[ -n "$iface" ]] &&
+       file_exists "/sys/class/net/${iface}/statistics/rx_dropped"; then
+
+        cat "/sys/class/net/${iface}/statistics/rx_dropped"
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+network_get_tx_drops() {
+
+    local iface
+
+    iface="$(network_get_default_interface)"
+
+    if [[ -n "$iface" ]] &&
+       file_exists "/sys/class/net/${iface}/statistics/tx_dropped"; then
+
+        cat "/sys/class/net/${iface}/statistics/tx_dropped"
+
+    else
+
+        printf "0"
+
+    fi
+
+}
+
+network_ping_gateway() {
+
+    local gateway
+
+    gateway="$(network_get_gateway)"
+
+    if [[ -n "$gateway" ]] &&
+       command_exists ping; then
+
+        ping -c1 -W2 "$gateway" >/dev/null 2>&1
+
+    else
+
+        return 1
+
+    fi
+
+}
+
+network_ping_internet() {
+
+    if command_exists ping; then
+
+        ping -c1 -W3 8.8.8.8 >/dev/null 2>&1
+
+    else
+
+        return 1
+
+    fi
+
+}
+
+network_check_dns() {
+    if command_exists getent; then
+
+        getent hosts google.com >/dev/null 2>&1
+
+    elif command_exists host; then
+
+        host google.com >/dev/null 2>&1
+
+    elif command_exists nslookup; then
+
+        nslookup google.com >/dev/null 2>&1
+
+    else
+
+        return 1
+
+    fi
+
+}
+
+
+#===============================================================================
 # CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
 
