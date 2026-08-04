@@ -308,6 +308,7 @@ network_ping_internet() {
 }
 
 network_check_dns() {
+    
     if command_exists getent; then
 
         getent hosts google.com >/dev/null 2>&1
@@ -327,7 +328,6 @@ network_check_dns() {
     fi
 
 }
-
 
 #===============================================================================
 # CAMADA 2 - APRESENTAÇÃO
