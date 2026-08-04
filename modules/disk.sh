@@ -136,16 +136,17 @@ disk_get_inodes() {
     fi
 
 }
-
 disk_get_physical_disks() {
 
     if command_exists lsblk; then
 
         lsblk \
             -d \
+            -e7 \
             -o NAME,SIZE,MODEL,ROTA,TRAN \
             -n \
-            2>/dev/null || true
+            2>/dev/null |
+        awk '$1 !~ /^(loop|ram|zram|dm-)/'
 
     fi
 

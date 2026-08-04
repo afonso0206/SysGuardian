@@ -55,6 +55,12 @@ readonly HOSTNAME="$(hostname -s)"
 readonly APP_DIR="${DATA_DIR}"
 readonly MODULE_DIR="${DATA_DIR}/modules"
 readonly LIB_DIR="${DATA_DIR}/lib"
+#===============================================================================
+# CARREGAMENTO DAS BIBLIOTECAS
+#===============================================================================
+
+# shellcheck disable=SC1091
+source "${LIB_DIR}/utils.sh"
 
 #===============================================================================
 # CARREGAMENTO DAS BIBLIOTECAS
@@ -281,13 +287,13 @@ check_system_and_boot() {
     if command_exists systemd-analyze; then
 
         local boot_time_raw
-
-        boot_time_raw="$(
-            run_cmd systemd-analyze 2>/dev/null |
-            grep -oE 'startup in [0-9]+(\.[0-9]+)?(ms|s|min|h)' |
-            head -1
-        )"
-
+        
+boot_time_raw="$(
+    run_cmd systemd-analyze 2>/dev/null |
+    awk -F'= ' 'NF>1 {print $2}' |
+    sed 's/[[:space:]]*$//' ||
+    true
+)"
         log_entry "System" "INFO" \
             "Tempo de Boot: ${boot_time_raw:-Não disponível}"
 
@@ -488,10 +494,9 @@ check_disks_and_lvm() {
     done <<< "$disks"
     log_entry "Disks" "SUB" "Uso de Partições"
     local df_output
-
 df_output="$(
     disk_get_partition_usage |
-    grep '^/dev/'
+    grep '^/dev/' || true
 )"
     if [[ -n "$df_output" ]]; then
         echo "$df_output" | while IFS= read -r line; do
@@ -527,13 +532,20 @@ df_output="$(
                 local free_num=$(safe_float "$free")
                 log_entry "LVM" "INFO" "VG: $vg | Size: ${size}G | Free: ${free}G | PVs: $pv | LVs: $lv"
                 
-                # Verificar se há thin pools antes de alertar sobre free baixo
-                local is_thin=0
-                if command -v lvs &>/dev/null; then
-                    is_thin=$(run_cmd lvs --noheadings -o lv_attr "$vg" 2>/dev/null | grep -c '^t' || echo "0")
-                fi
-                
-                if safe_compare "$free_num" "<" "1.0" && [[ "$is_thin" -eq 0 ]]; then
+local is_thin=0
+
+if command -v lvs &>/dev/null; then
+
+    is_thin="$(
+        run_cmd lvs --noheadings -o lv_attr "$vg" 2>/dev/null |
+        grep -c '^t' || true
+    )"
+
+    is_thin="$(safe_int "$is_thin")"
+
+fi
+
+if safe_compare "$free_num" "<" "1.0" && [[ "$is_thin" -eq 0 ]]; then
                     log_entry "LVM" "WARN" "VG $vg com espaço livre crítico (${free}G) e sem Thin Pools"
                     score_sub "LVM" 10
                 fi
@@ -554,18 +566,30 @@ df_output="$(
                 path=$(echo "$path" | xargs)
                 
                 log_entry "LVM" "INFO" "LV: $lv ($vg) | Size: ${size}G | Data: ${data_pct:-N/A}% | Meta: ${meta_pct:-N/A}% | Path: $path"
-                
-                # Verificar uso de dados apenas se data_pct for numérico
-                if [[ -n "$data_pct" && "$data_pct" != "" ]]; then
-                    local d_pct=$(safe_int "${data_pct%\%}")
-                    if [[ "$d_pct" -ge 90 ]]; then
-                        log_entry "LVM" "ERROR" "LV $lv com uso de dados crítico: ${data_pct}%"
-                        score_sub "LVM" 10
-                    elif [[ "$d_pct" -ge 80 ]]; then
-                        log_entry "LVM" "WARN" "LV $lv com uso de dados elevado: ${data_pct}%"
-                        score_sub "LVM" 5
-                    fi
-                fi
+# Verificar uso de dados apenas se data_pct for realmente numérico
+if [[ "$data_pct" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+
+    local d_pct
+
+    d_pct="$(safe_int "$data_pct")"
+
+    if [[ "$d_pct" -ge 90 ]]; then
+
+        log_entry "LVM" "ERROR" \
+            "LV $lv com uso de dados crítico: ${data_pct}%"
+
+        score_sub "LVM" 10
+
+    elif [[ "$d_pct" -ge 80 ]]; then
+
+        log_entry "LVM" "WARN" \
+            "LV $lv com uso de dados elevado: ${data_pct}%"
+
+        score_sub "LVM" 5
+
+    fi
+
+fi
             done
         fi
     fi
@@ -853,13 +877,11 @@ check_logs() {
         "Espaço em disco usado pelos logs: ${disk_usage:-Não disponível}"
     log_entry "Logs" "SUB" \
         "Top 15 Serviços com Erros (últimas 24h)"
+local errors
+local total_errs
 
-    local errors
-
-    errors="$(logs_get_top_services)"local total_errs
-
+errors="$(logs_get_top_services)"
 total_errs="$(logs_get_total_errors)"
-
 log_entry "Logs" "INFO" \
    "Total de entradas de erro: $total_errs"
 
