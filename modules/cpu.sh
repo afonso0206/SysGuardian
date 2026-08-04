@@ -103,6 +103,126 @@ cpu_get_temperature() {
 }
 
 #===============================================================================
+# API EXPANDIDA (PR-004)
+#===============================================================================
+
+cpu_get_vendor() {
+
+    if file_exists "/proc/cpuinfo"; then
+
+        awk -F': ' '/vendor_id/ {print $2; exit}' /proc/cpuinfo
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+cpu_get_frequency() {
+
+    if file_exists "/proc/cpuinfo"; then
+
+        awk -F': ' '/cpu MHz/ {printf "%.0f MHz\n", $2; exit}' \
+            /proc/cpuinfo
+
+    else
+
+        printf "Desconhecida"
+
+    fi
+
+}
+
+cpu_get_cache() {
+
+    if file_exists "/proc/cpuinfo"; then
+
+        awk -F': ' '/cache size/ {print $2; exit}' /proc/cpuinfo
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+cpu_get_flags() {
+
+    if file_exists "/proc/cpuinfo"; then
+
+        awk -F': ' '/flags/ {print $2; exit}' /proc/cpuinfo
+
+    fi
+
+}
+
+cpu_get_governor() {
+
+    if file_exists \
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"; then
+
+        cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+cpu_get_scaling_driver() {
+
+    if file_exists \
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_driver"; then
+
+        cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+cpu_get_usage_percent() {
+
+    if command_exists uptime; then
+
+        uptime |
+        awk -F'load average:' '{gsub(/^ +/, "", $2); print $2}'
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+cpu_is_virtualized() {
+
+    if command_exists systemd-detect-virt; then
+
+        systemd-detect-virt --quiet
+
+    elif file_exists "/proc/cpuinfo"; then
+
+        grep -qi hypervisor /proc/cpuinfo
+
+    else
+
+        return 1
+
+    fi
+
+}
+
+#===============================================================================
 # CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
 
