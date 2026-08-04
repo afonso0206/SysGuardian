@@ -127,6 +127,128 @@ memory_get_swap_used() {
 }
 
 #===============================================================================
+# API EXPANDIDA (PR-004)
+#===============================================================================
+
+memory_get_cached() {
+
+    if file_exists "/proc/meminfo"; then
+
+        awk '/^Cached:/ {printf "%.2f GB", $2/1024/1024}' \
+            /proc/meminfo
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+memory_get_buffers() {
+
+    if file_exists "/proc/meminfo"; then
+
+        awk '/^Buffers:/ {printf "%.2f GB", $2/1024/1024}' \
+            /proc/meminfo
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+memory_get_shared() {
+
+    if file_exists "/proc/meminfo"; then
+
+        awk '/^Shmem:/ {printf "%.2f GB", $2/1024/1024}' \
+            /proc/meminfo
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+memory_get_swap_usage_percent() {
+
+    if file_exists "/proc/meminfo"; then
+
+        local total free
+
+        total="$(awk '/SwapTotal:/ {print $2}' /proc/meminfo)"
+        free="$(awk '/SwapFree:/ {print $2}' /proc/meminfo)"
+
+        if [[ "$total" -eq 0 ]]; then
+
+            printf "0.0"
+
+        else
+
+            awk -v t="$total" -v f="$free" \
+                'BEGIN {printf "%.1f", ((t-f)/t)*100}'
+
+        fi
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+memory_has_swap() {
+
+    if file_exists "/proc/meminfo"; then
+
+        awk '/SwapTotal:/ {exit ($2 > 0 ? 0 : 1)}' \
+            /proc/meminfo
+
+    else
+
+        return 1
+
+    fi
+
+}
+
+memory_get_commit_limit() {
+
+    if file_exists "/proc/meminfo"; then
+
+        awk '/CommitLimit:/ {printf "%.2f GB", $2/1024/1024}' \
+            /proc/meminfo
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+memory_get_committed() {
+
+    if file_exists "/proc/meminfo"; then
+
+        awk '/Committed_AS:/ {printf "%.2f GB", $2/1024/1024}' \
+            /proc/meminfo
+
+    else
+
+        printf "Desconhecido"
+
+    fi
+
+}
+
+#===============================================================================
 # CAMADA 2 - APRESENTAÇÃO
 #===============================================================================
 
