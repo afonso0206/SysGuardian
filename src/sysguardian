@@ -305,27 +305,27 @@ boot_time_raw="$(
         log_entry "System" "SUB" \
             "5 Serviços mais lentos no boot"
 
-        run_cmd systemd-analyze blame 2>/dev/null |
-        head -5 |
-        while read -r line; do
+while IFS= read -r line; do
 
-            [[ -n "$line" ]] &&
-                log_entry "System" "INFO" "  $line"
+    [[ -n "$line" ]] &&
+        log_entry "System" "INFO" "  $line"
 
-        done
-
+done < <(
+    run_cmd systemd-analyze blame 2>/dev/null |
+    head -5
+)
         log_entry "System" "SUB" \
             "Cadeia crítica do boot"
 
-        run_cmd systemd-analyze critical-chain 2>/dev/null |
-        head -8 |
-        while read -r line; do
+while IFS= read -r line; do
 
-            [[ -n "$line" ]] &&
-                log_entry "System" "INFO" "  $line"
+    [[ -n "$line" ]] &&
+        log_entry "System" "INFO" "  $line"
 
-        done
-
+done < <(
+    run_cmd systemd-analyze critical-chain 2>/dev/null |
+    head -8
+)
     fi
 
 }
@@ -801,18 +801,41 @@ check_services_and_security() {
     run_cmd systemctl is-active --quiet fail2ban && log_entry "Security" "OK" "Fail2ban Ativo" || log_entry "Security" "INFO" "Fail2ban Inativo/Não instalado"
     run_cmd aa-status &>/dev/null && log_entry "Security" "OK" "AppArmor Ativo" || log_entry "Security" "INFO" "AppArmor Inativo"
     run_cmd systemctl is-active --quiet auditd && log_entry "Security" "OK" "Auditd Ativo" || log_entry "Security" "INFO" "Auditd Inativo/Não instalado"
+    local sim_upgrade
+    sim_upgrade="$(
+        run_cmd apt-get -s upgrade 2>/dev/null |
+        grep -E '^Inst |^Conf ' || true
+    )"
 
-    local sim_upgrade=$(run_cmd apt-get -s upgrade 2>/dev/null | grep -E '^Inst |^Conf ' || true)
-    local upd_count=$(echo "$sim_upgrade" | grep -c '^Inst' || echo "0")
-    local sec_count=$(echo "$sim_upgrade" | grep -ci 'security' || echo "0")
-    local kern_count=$(echo "$sim_upgrade" | grep -ciE 'linux-image|linux-headers' || echo "0")
-    
-    log_entry "Security" "INFO" "Atualizações pendentes: $upd_count (Segurança: $sec_count, Kernel: $kern_count)"
-    if [[ "$(safe_int "$sec_count")" -gt 0 ]]; then
-        log_entry "Security" "WARN" "Existem atualizações de segurança pendentes"
-        score_sub "Security" 5
-    fi
+    local upd_count
+upd_count="$(
+    printf '%s\n' "$sim_upgrade" |
+    grep -c '^Inst' || true
+)"
 
+sec_count="$(
+    printf '%s\n' "$sim_upgrade" |
+    grep -ci 'security' || true
+)"
+
+local kern_count
+kern_count="$(
+    printf '%s\n' "$sim_upgrade" |
+    grep -ciE 'linux-image|linux-headers' || true
+)"
+
+    upd_count=$(printf '%s' "$upd_count" | head -n1 | tr -d '[:space:]')
+    sec_count=$(printf '%s' "$sec_count" | head -n1 | tr -d '[:space:]')
+    kern_count=$(printf '%s' "$kern_count" | head -n1 | tr -d '[:space:]')
+
+log_entry "Security" "INFO" \
+    "Atualizações pendentes: $upd_count (Segurança: $sec_count, Kernel: $kern_count)"
+
+if [[ "$(safe_int "$sec_count")" -gt 0 ]]; then
+    log_entry "Security" "WARN" \
+        "Existem atualizações de segurança pendentes"
+    score_sub "Security" 5
+fi
     log_entry "Security" "SUB" "Verificações de Segurança do Sistema"
     local suid_count=$(run_cmd find /usr /etc -perm -4000 -type f 2>/dev/null | wc -l || echo "0")
     log_entry "Security" "INFO" "Arquivos SUID em /usr e /etc: $suid_count"
