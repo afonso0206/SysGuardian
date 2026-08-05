@@ -106,6 +106,7 @@ readonly TXT_FILE="${REPORT_DIR}/report_${TIMESTAMP}.txt"
 readonly HTML_FILE="${REPORT_DIR}/report_${TIMESTAMP}.html"
 readonly PDF_FILE="${REPORT_DIR}/report_${TIMESTAMP}.pdf"
 readonly HTML_BUF="${TMP_DIR}/health_html_buf_${TIMESTAMP}.tmp"
+readonly JSON_FILE="${REPORT_DIR}/report_${TIMESTAMP}.json"
 
 readonly C_RED='\033[0;31m'
 readonly C_GREEN='\033[0;32m'
@@ -1420,7 +1421,76 @@ generate_reports() {
         log_entry "System" "INFO" "wkhtmltopdf não instalado. PDF não gerado. (Execute: sudo apt install wkhtmltopdf)"
     fi
 
-    rm -f "$HTML_BUF" 2>/dev/null || true
+rm -f "$HTML_BUF" 2>/dev/null || true
+}
+
+generate_json_report() {
+
+    local final_score
+    final_score=$(calculate_final_score)
+
+    local classification
+    classification=$(get_classification "$final_score")
+
+    {
+
+        echo "{"
+        echo "  \"metadata\": {"
+        echo "    \"hostname\": \"$HOSTNAME\","
+        echo "    \"date\": \"$DATE_HUMAN\","
+        echo "    \"version\": \"$SCRIPT_VERSION\","
+        echo "    \"score\": $final_score,"
+        echo "    \"classification\": \"$classification\""
+        echo "  },"
+
+        echo "  \"category_scores\": {"
+
+        local first=1
+
+        for cat in "${!CATEGORY_SCORES[@]}"; do
+
+            [[ $first -eq 0 ]] && echo ","
+
+            printf '    "%s": %s' \
+                "$cat" \
+                "${CATEGORY_SCORES[$cat]}"
+
+            first=0
+
+        done
+
+        echo
+        echo "  },"
+
+        echo "  \"entries\": ["
+
+        first=1
+
+        for entry in "${REPORT_DATA[@]}"; do
+
+            IFS='|' read -r cat level msg <<< "$entry"
+
+            msg="${msg//\\/\\\\}"
+            msg="${msg//\"/\\\"}"
+
+            [[ $first -eq 0 ]] && echo ","
+
+            printf '    {"category":"%s","level":"%s","message":"%s"}' \
+                "$cat" \
+                "$level" \
+                "$msg"
+
+            first=0
+
+        done
+
+        echo
+        echo "  ]"
+
+        echo "}"
+
+    } > "$JSON_FILE"
+
 }
 
 #===============================================================================
@@ -1455,10 +1525,12 @@ main() {
     check_mysql
     check_trim
 
-    echo -e "\n${C_CYAN}${C_BOLD}Processando dados e gerando relatórios...${C_RESET}"
-    generate_reports
+echo -e "\n${C_CYAN}${C_BOLD}Processando dados e gerando relatórios...${C_RESET}"
 
-    local final_score=$(calculate_final_score)
+generate_reports
+generate_json_report
+
+local final_score=$(calculate_final_score)
     local classification=$(get_classification "$final_score")
     
     echo -e "\n${C_CYAN}${C_BOLD}===============================================================================${C_RESET}"
@@ -1468,6 +1540,7 @@ main() {
     echo -e "  - Texto: ${TXT_FILE}"
     echo -e "  - HTML:  ${HTML_FILE}"
     [[ -f "$PDF_FILE" ]] && echo -e "  - PDF:   ${PDF_FILE}"
+    [[ -f "$JSON_FILE" ]] && echo -e "  - JSON:  ${JSON_FILE}"
     echo -e "${C_CYAN}${C_BOLD}===============================================================================${C_RESET}\n"
 }
 
