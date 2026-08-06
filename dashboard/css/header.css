@@ -1,0 +1,270 @@
+/**
+ * ============================================================
+ * SysGuardian Dashboard
+ * Header
+ * ============================================================
+ */
+
+.top-header {
+
+    position: sticky;
+
+    top: 0;
+
+    z-index: var(--z-header);
+
+    height: var(--header-height);
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    padding: 0 var(--space-7);
+
+    background: var(--bg-secondary);
+
+    border-bottom: 1px solid var(--border-color);
+
+    backdrop-filter: var(--glass-blur);
+
+    box-shadow: var(--shadow-xs);
+
+}
+
+/* ============================================================
+   Left
+   ============================================================ */
+
+.header-left {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-5);
+
+}
+
+/* ============================================================
+   Sidebar Button
+   ============================================================ */
+
+.sidebar-toggle-btn {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 40px;
+
+    height: 40px;
+
+    border: none;
+
+    border-radius: var(--radius-md);
+
+    background: transparent;
+
+    color: var(--text-secondary);
+
+    cursor: pointer;
+
+    transition:
+
+        background var(--transition-fast),
+
+        color var(--transition-fast),
+
+        transform var(--transition-fast);
+
+}
+
+.sidebar-toggle-btn:hover {
+
+    background: var(--bg-surface);
+
+    color: var(--text-primary);
+
+}
+
+.sidebar-toggle-btn:active {
+
+    transform: scale(.95);
+
+}
+
+.sidebar-toggle-btn:focus-visible {
+
+    outline: 2px solid var(--color-bom);
+
+    outline-offset: 2px;
+
+}
+
+/* ============================================================
+   Metadata
+   ============================================================ */
+
+.meta-info-strip {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-6);
+
+    color: var(--text-secondary);
+
+    font-size: var(--font-sm);
+
+    flex-wrap: wrap;
+
+}
+
+.meta-item {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-2);
+
+}
+
+.meta-item strong {
+
+    color: var(--text-primary);
+
+    font-weight: var(--fw-semibold);
+
+}
+
+/* ============================================================
+   Right
+   ============================================================ */
+
+.header-right {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-4);
+
+}
+
+/* ============================================================
+   Select
+   ============================================================ */
+
+.control-select {
+
+    min-width: 120px;
+
+    padding:
+
+        var(--space-2)
+
+        var(--space-4);
+
+    border: 1px solid var(--border-light);
+
+    border-radius: var(--radius-md);
+
+    background: var(--bg-surface);
+
+    color: var(--text-primary);
+
+    font-size: var(--font-sm);
+
+    outline: none;
+
+    cursor: pointer;
+
+    transition:
+
+        border-color var(--transition-fast),
+
+        background var(--transition-fast);
+
+}
+
+.control-select:hover {
+
+    background: var(--bg-surface-hover);
+
+}
+
+.control-select:focus {
+
+    border-color: var(--color-bom);
+
+}
+
+/* ============================================================
+   Refresh Button
+   ============================================================ */
+
+.btn-refresh {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: var(--space-2);
+
+    padding:
+
+        var(--space-2)
+
+        var(--space-4);
+
+    border: 1px solid var(--border-light);
+
+    border-radius: var(--radius-md);
+
+    background: var(--bg-surface);
+
+    color: var(--text-primary);
+
+    font-size: var(--font-sm);
+
+    font-weight: var(--fw-medium);
+
+    cursor: pointer;
+
+    transition:
+
+        background var(--transition-fast),
+
+        transform var(--transition-fast),
+
+        box-shadow var(--transition-fast);
+
+}
+
+.btn-refresh:hover {
+
+    background: var(--bg-surface-hover);
+
+    box-shadow: var(--shadow-sm);
+
+}
+
+.btn-refresh:active {
+
+    transform: scale(.97);
+
+}
+
+.btn-refresh:focus-visible {
+
+    outline: 2px solid var(--color-bom);
+
+    outline-offset: 2px;
+
+}

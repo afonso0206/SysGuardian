@@ -1,0 +1,223 @@
+/**
+ * ============================================================
+ * SysGuardian Dashboard
+ * Cards
+ * ============================================================
+ */
+
+.cards-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(auto-fill,minmax(280px,1fr));
+
+    gap: var(--card-gap);
+
+}
+
+/* ============================================================
+   Card
+   ============================================================ */
+
+.metric-card {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: var(--space-5);
+
+    min-height: var(--card-min-height);
+
+    padding: var(--card-padding);
+
+    background: var(--glass-bg);
+
+    backdrop-filter: var(--glass-blur);
+
+    border: 1px solid var(--glass-border);
+
+    border-radius: var(--card-radius);
+
+    box-shadow: var(--shadow-sm);
+
+    transition:
+
+        transform var(--transition-fast),
+
+        box-shadow var(--transition-fast),
+
+        border-color var(--transition-fast);
+
+}
+
+.metric-card:hover {
+
+    transform:
+
+        translateY(-4px)
+
+        scale(1.01);
+
+    border-color: var(--border-light);
+
+    box-shadow: var(--shadow-lg);
+
+}
+
+/* ============================================================
+   Top
+   ============================================================ */
+
+.card-top {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+}
+
+.card-title-group {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-3);
+
+}
+
+.card-icon {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 24px;
+
+    height: 24px;
+
+    color: var(--text-secondary);
+
+    flex-shrink: 0;
+
+}
+
+.card-name {
+
+    font-size: var(--font-md);
+
+    font-weight: var(--fw-semibold);
+
+    color: var(--text-primary);
+
+}
+
+.card-score {
+
+    font-size: var(--font-xl);
+
+    font-weight: var(--fw-bold);
+
+    font-variant-numeric: tabular-nums;
+
+}
+
+/* ============================================================
+   Progress
+   ============================================================ */
+
+.card-progress-track {
+
+    height: 8px;
+
+    background: var(--bg-primary);
+
+    border-radius: var(--radius-round);
+
+    overflow: hidden;
+
+}
+
+.card-progress-bar {
+
+    height: 100%;
+
+    border-radius: var(--radius-round);
+
+    transition:
+
+        width var(--transition-slow);
+
+    box-shadow:
+
+        0 0 8px rgba(255,255,255,.10);
+
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+
+.card-footer {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    color: var(--text-muted);
+
+    font-size: var(--font-sm);
+
+}
+
+.status-badge {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding:
+
+        var(--space-1)
+
+        var(--space-3);
+
+    border-radius: var(--radius-round);
+
+    border: 1px solid transparent;
+
+    font-size: var(--font-xs);
+
+    font-weight: var(--fw-bold);
+
+    letter-spacing: .05em;
+
+    text-transform: uppercase;
+
+    white-space: nowrap;
+
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width:768px){
+
+    .cards-grid{
+
+        grid-template-columns:1fr;
+
+    }
+
+}

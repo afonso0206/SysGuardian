@@ -1,0 +1,176 @@
+/**
+ * ============================================================
+ * SysGuardian Dashboard
+ * Gauge
+ * ============================================================
+ */
+
+.gauge-panel {
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    min-height: 360px;
+
+    padding: var(--space-6);
+
+    background: var(--glass-bg);
+
+    backdrop-filter: var(--glass-blur);
+
+    border: 1px solid var(--glass-border);
+
+    border-radius: var(--card-radius);
+
+    box-shadow: var(--shadow-md);
+
+}
+
+/* ============================================================
+   Title
+   ============================================================ */
+
+.gauge-panel-title {
+
+    margin-bottom: var(--space-5);
+
+    font-size: var(--font-md);
+
+    font-weight: var(--fw-semibold);
+
+    color: var(--text-secondary);
+
+    text-align: center;
+
+}
+
+/* ============================================================
+   Wrapper
+   ============================================================ */
+
+.gauge-svg-wrapper {
+
+    position: relative;
+
+    width: var(--gauge-size);
+
+    height: var(--gauge-size);
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+}
+
+.gauge-svg-wrapper svg {
+
+    width: 100%;
+
+    height: 100%;
+
+    filter:
+
+        drop-shadow(
+
+            0 0 10px rgba(0,0,0,.25)
+
+        );
+
+}
+
+/* ============================================================
+   Center
+   ============================================================ */
+
+.gauge-center-text {
+
+    position: absolute;
+
+    inset: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    pointer-events: none;
+
+}
+
+/* ============================================================
+   Score
+   ============================================================ */
+
+.gauge-value {
+
+    font-size: 2.7rem;
+
+    font-weight: 800;
+
+    line-height: 1;
+
+    font-variant-numeric: tabular-nums;
+
+    text-shadow:
+
+        0 0 8px rgba(255,255,255,.08);
+
+}
+
+/* ============================================================
+   Classification
+   ============================================================ */
+
+.gauge-class {
+
+    margin-top: var(--space-2);
+
+    font-size: var(--font-sm);
+
+    font-weight: var(--fw-bold);
+
+    text-transform: uppercase;
+
+    letter-spacing: .08em;
+
+    color: var(--text-secondary);
+
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width:768px){
+
+    .gauge-panel{
+
+        min-height:auto;
+
+    }
+
+    .gauge-svg-wrapper{
+
+        width:180px;
+
+        height:180px;
+
+    }
+
+    .gauge-value{
+
+        font-size:2.1rem;
+
+    }
+
+}

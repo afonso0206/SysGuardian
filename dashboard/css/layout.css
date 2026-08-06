@@ -1,0 +1,237 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-color: var(--bg-primary, #0f172a);
+    color: var(--text-primary, #f8fafc);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.content-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    margin-left: var(--sidebar-width, 260px);
+    transition: margin-left 0.3s ease;
+}
+
+.main-content {
+    flex: 1;
+    padding: 2rem;
+    margin-top: var(--header-height, 70px);
+    width: 100%;
+    max-width: 1600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.view-page {
+    display: none;
+    width: 100%;
+    animation: fadeIn 0.25s ease-in-out;
+}
+
+.view-page.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.container,
+.container-fluid {
+    width: 100%;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+.container {
+    max-width: 1400px;
+}
+
+.content-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary, #f8fafc);
+    line-height: 1.2;
+}
+
+.section-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary, #94a3b8);
+    margin-top: 0.25rem;
+}
+
+.section-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.panel {
+    background-color: var(--bg-secondary, #1e293b);
+    border: 1px solid var(--border-color, #334155);
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.panel-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color, #334155);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.panel-body {
+    padding: 1.5rem;
+    flex: 1;
+    position: relative;
+}
+
+.grid-dashboard-top {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    align-items: stretch;
+}
+
+.gauge-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.gauge-panel svg,
+.gauge-panel img,
+.gauge-panel canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+.cards-container,
+.grid-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
+    width: 100%;
+}
+
+.grid-charts-two {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.chart-card-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-container {
+    position: relative;
+    width: 100%;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-container canvas,
+.chart-container svg {
+    max-width: 100% !important;
+    max-height: 100% !important;
+}
+
+@media (max-width: 1200px) {
+    .grid-dashboard-top {
+        grid-template-columns: 1fr;
+    }
+
+    .grid-charts-two {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 992px) {
+    .content-area {
+        margin-left: 0;
+    }
+
+    .main-content {
+        padding: 1.25rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .section-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .cards-container,
+    .grid-cards {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-content {
+        padding: 0.75rem;
+    }
+
+    .cards-container,
+    .grid-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .panel-header,
+    .panel-body {
+        padding: 1rem;
+    }
+}

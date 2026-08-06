@@ -1,0 +1,240 @@
+/**
+ * ============================================================
+ * SysGuardian Dashboard
+ * Animations
+ * ============================================================
+ */
+
+/* ============================================================
+   Fade In
+   ============================================================ */
+
+@keyframes fadeIn {
+
+    from {
+
+        opacity: 0;
+
+        transform: translateY(8px);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform: translateY(0);
+
+    }
+
+}
+
+/* ============================================================
+   Fade Scale
+   ============================================================ */
+
+@keyframes fadeScale {
+
+    from {
+
+        opacity: 0;
+
+        transform: scale(.96);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform: scale(1);
+
+    }
+
+}
+
+/* ============================================================
+   Slide Left
+   ============================================================ */
+
+@keyframes slideLeft {
+
+    from {
+
+        opacity: 0;
+
+        transform: translateX(20px);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform: translateX(0);
+
+    }
+
+}
+
+/* ============================================================
+   Pulse Glow
+   ============================================================ */
+
+@keyframes pulseGlow {
+
+    0% {
+
+        transform: scale(1);
+
+        opacity: .85;
+
+    }
+
+    50% {
+
+        transform: scale(1.03);
+
+        opacity: 1;
+
+    }
+
+    100% {
+
+        transform: scale(1);
+
+        opacity: .85;
+
+    }
+
+}
+
+/* ============================================================
+   Rotate
+   ============================================================ */
+
+@keyframes rotate {
+
+    from {
+
+        transform: rotate(0deg);
+
+    }
+
+    to {
+
+        transform: rotate(360deg);
+
+    }
+
+}
+
+/* ============================================================
+   Animation Classes
+   ============================================================ */
+
+.animate-fade-in {
+
+    animation:
+
+        fadeIn
+
+        var(--transition-normal)
+
+        ease
+
+        both;
+
+}
+
+.animate-scale {
+
+    animation:
+
+        fadeScale
+
+        var(--transition-normal)
+
+        ease
+
+        both;
+
+}
+
+.animate-slide {
+
+    animation:
+
+        slideLeft
+
+        var(--transition-normal)
+
+        ease
+
+        both;
+
+}
+
+.gauge-pulse {
+
+    animation:
+
+        pulseGlow
+
+        2.8s
+
+        ease-in-out
+
+        infinite;
+
+}
+
+.spin {
+
+    animation:
+
+        rotate
+
+        1s
+
+        linear
+
+        infinite;
+
+}
+
+/* ============================================================
+   Performance
+   ============================================================ */
+
+.animate-fade-in,
+.animate-scale,
+.animate-slide,
+.gauge-pulse,
+.spin {
+
+    will-change:
+
+        transform,
+
+        opacity;
+
+}
+
+/* ============================================================
+   Accessibility
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+    * {
+
+        animation: none !important;
+
+        transition: none !important;
+
+        scroll-behavior: auto !important;
+
+    }
+
+}

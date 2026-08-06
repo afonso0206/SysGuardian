@@ -1,0 +1,308 @@
+/* ==========================================================
+   SysGuardian Dashboard
+   Layout Principal
+   ========================================================== */
+
+.wrapper{
+
+    display:grid;
+
+    grid-template-columns:280px 1fr;
+
+    min-height:100vh;
+
+    background:var(--bg);
+
+}
+
+/* ===========================
+   Sidebar
+=========================== */
+
+.sidebar{
+
+    background:var(--card);
+
+    border-right:1px solid var(--border);
+
+    display:flex;
+
+    flex-direction:column;
+
+    overflow:hidden;
+
+    transition:.30s;
+
+}
+
+.sidebar.collapsed{
+
+    width:90px;
+
+}
+
+.logo{
+
+    height:72px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    font-size:28px;
+
+    font-weight:700;
+
+    color:var(--primary);
+
+    border-bottom:1px solid var(--border);
+
+}
+
+.menu{
+
+    flex:1;
+
+    padding:25px 18px;
+
+}
+
+.menu ul{
+
+    list-style:none;
+
+}
+
+.menu li{
+
+    margin-bottom:8px;
+
+}
+
+.menu a{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:14px;
+
+    padding:14px;
+
+    border-radius:12px;
+
+    transition:.25s;
+
+    font-weight:600;
+
+}
+
+.menu a:hover{
+
+    background:#edf4ff;
+
+}
+
+.menu a.active{
+
+    background:var(--primary);
+
+    color:white;
+
+}
+
+/* ===========================
+   Conteúdo
+=========================== */
+
+.content{
+
+    display:flex;
+
+    flex-direction:column;
+
+    min-height:100vh;
+
+}
+
+/* ===========================
+   Topbar
+=========================== */
+
+.topbar{
+
+    height:72px;
+
+    background:var(--card);
+
+    border-bottom:1px solid var(--border);
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    padding:0 30px;
+
+}
+
+.topbar-left{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:18px;
+
+}
+
+.topbar-right{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:15px;
+
+}
+
+/* ===========================
+   Main
+=========================== */
+
+.main{
+
+    flex:1;
+
+    padding:30px;
+
+}
+
+/* ===========================
+   Grid principal
+=========================== */
+
+.dashboard-grid{
+
+    display:grid;
+
+    grid-template-columns:
+
+        380px
+
+        1fr
+
+        360px;
+
+    gap:24px;
+
+    margin-bottom:24px;
+
+}
+
+/* ===========================
+   Widgets
+=========================== */
+
+.widgets{
+
+    display:grid;
+
+    grid-template-columns:
+
+        repeat(auto-fill,minmax(280px,1fr));
+
+    gap:22px;
+
+}
+
+/* ===========================
+   Cards
+=========================== */
+
+.card{
+
+    padding:24px;
+
+    min-height:220px;
+
+}
+
+/* ===========================
+   Footer
+=========================== */
+
+.footer{
+
+    border-top:1px solid var(--border);
+
+    padding:20px;
+
+    text-align:center;
+
+    color:var(--text-secondary);
+
+    font-size:13px;
+
+}
+
+/* ===========================
+   Responsivo
+=========================== */
+
+@media(max-width:1500px){
+
+.dashboard-grid{
+
+grid-template-columns:1fr;
+
+}
+
+}
+
+@media(max-width:980px){
+
+.wrapper{
+
+grid-template-columns:1fr;
+
+}
+
+.sidebar{
+
+display:none;
+
+}
+
+.main{
+
+padding:20px;
+
+}
+
+}
+
+@media(max-width:700px){
+
+.topbar{
+
+padding:15px;
+
+flex-direction:column;
+
+height:auto;
+
+gap:15px;
+
+}
+
+.main{
+
+padding:15px;
+
+}
+
+}

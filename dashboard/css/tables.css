@@ -1,0 +1,198 @@
+/**
+ * ============================================================
+ * SysGuardian Dashboard
+ * Tables
+ * ============================================================
+ */
+
+.table-card {
+
+    background: var(--glass-bg);
+
+    backdrop-filter: var(--glass-blur);
+
+    border: 1px solid var(--glass-border);
+
+    border-radius: var(--card-radius);
+
+    padding: var(--card-padding);
+
+    overflow-x: auto;
+
+    box-shadow: var(--shadow-sm);
+
+}
+
+/* ============================================================
+   Table
+   ============================================================ */
+
+.sys-table {
+
+    width: 100%;
+
+    border-collapse: collapse;
+
+    font-size: var(--font-sm);
+
+    color: var(--text-primary);
+
+}
+
+.sys-table caption {
+
+    text-align: left;
+
+    padding-bottom: var(--space-4);
+
+    font-size: var(--font-lg);
+
+    font-weight: var(--fw-semibold);
+
+    color: var(--text-primary);
+
+}
+
+/* ============================================================
+   Header
+   ============================================================ */
+
+.sys-table thead {
+
+    background: var(--bg-surface);
+
+}
+
+.sys-table th {
+
+    padding:
+
+        var(--space-3)
+
+        var(--space-4);
+
+    text-align: left;
+
+    color: var(--text-muted);
+
+    font-size: var(--font-xs);
+
+    font-weight: var(--fw-bold);
+
+    text-transform: uppercase;
+
+    letter-spacing: .06em;
+
+    border-bottom: 1px solid var(--border-color);
+
+    white-space: nowrap;
+
+}
+
+/* ============================================================
+   Body
+   ============================================================ */
+
+.sys-table td {
+
+    padding:
+
+        var(--space-4)
+
+        var(--space-4);
+
+    border-bottom: 1px solid var(--border-color);
+
+    color: var(--text-primary);
+
+    vertical-align: middle;
+
+}
+
+.sys-table tbody tr:last-child td {
+
+    border-bottom: none;
+
+}
+
+/* ============================================================
+   Hover
+   ============================================================ */
+
+.sys-table tbody tr {
+
+    transition:
+
+        background var(--transition-fast);
+
+}
+
+.sys-table tbody tr:hover {
+
+    background: var(--bg-surface);
+
+}
+
+/* ============================================================
+   Zebra
+   ============================================================ */
+
+.sys-table tbody tr:nth-child(even) {
+
+    background: rgba(255,255,255,.015);
+
+}
+
+/* ============================================================
+   Focus
+   ============================================================ */
+
+.sys-table tbody tr:focus-within {
+
+    outline: 2px solid var(--color-bom);
+
+    outline-offset: -2px;
+
+}
+
+/* ============================================================
+   Utilities
+   ============================================================ */
+
+.sys-table .text-right {
+
+    text-align: right;
+
+}
+
+.sys-table .text-center {
+
+    text-align: center;
+
+}
+
+.sys-table .text-muted {
+
+    color: var(--text-muted);
+
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width:768px){
+
+    .table-card{
+
+        padding: var(--space-3);
+
+    }
+
+    .sys-table{
+
+        min-width: 700px;
+
+    }
+
+}

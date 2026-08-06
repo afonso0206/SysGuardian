@@ -1,0 +1,282 @@
+/**
+ * ============================================================
+ * SysGuardian Dashboard
+ * Charts
+ * ============================================================
+ */
+
+/* ============================================================
+   Chart Card
+   ============================================================ */
+
+.chart-card-wrapper {
+
+    display: flex;
+
+    flex-direction: column;
+
+    background: var(--glass-bg);
+
+    backdrop-filter: var(--glass-blur);
+
+    border: 1px solid var(--glass-border);
+
+    border-radius: var(--card-radius);
+
+    padding: var(--card-padding);
+
+    box-shadow: var(--shadow-sm);
+
+}
+
+.chart-card-title {
+
+    margin-bottom: var(--space-5);
+
+    font-size: var(--font-md);
+
+    font-weight: var(--fw-semibold);
+
+    color: var(--text-secondary);
+
+}
+
+/* ============================================================
+   SVG
+   ============================================================ */
+
+.chart-svg-container {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 100%;
+
+    min-height: 260px;
+
+}
+
+.chart-svg-container svg {
+
+    width: 100%;
+
+    max-width: 300px;
+
+    height: 300px;
+
+    display: block;
+
+    overflow: visible;
+
+}
+
+/* ============================================================
+   Radar
+   ============================================================ */
+
+.chart-svg-container polygon {
+
+    transition:
+
+        fill var(--transition-normal),
+
+        stroke var(--transition-normal);
+
+}
+
+.chart-svg-container circle {
+
+    transition:
+
+        r var(--transition-fast),
+
+        fill var(--transition-fast);
+
+}
+
+.chart-svg-container circle:hover {
+
+    r: 5;
+
+}
+
+.chart-svg-container text {
+
+    font-family: var(--font-family);
+
+    font-size: var(--font-xs);
+
+    fill: var(--text-secondary);
+
+}
+
+/* ============================================================
+   Timeline
+   ============================================================ */
+
+.timeline-container {
+
+    position: relative;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: var(--space-6);
+
+    margin-top: var(--space-5);
+
+    padding-left: var(--space-6);
+
+    border-left: 2px solid var(--border-light);
+
+}
+
+.timeline-event {
+
+    position: relative;
+
+    animation:
+
+        fadeIn .35s ease;
+
+}
+
+.timeline-point {
+
+    position: absolute;
+
+    left: calc(var(--space-6) * -1 - 7px);
+
+    top: 8px;
+
+    width: 14px;
+
+    height: 14px;
+
+    border-radius: 50%;
+
+    background: var(--color-bom);
+
+    border: 3px solid var(--bg-secondary);
+
+    box-shadow:
+
+        0 0 10px rgba(59,130,246,.35);
+
+}
+
+.timeline-content {
+
+    padding:
+
+        var(--space-4)
+
+        var(--space-5);
+
+    background: var(--glass-bg);
+
+    backdrop-filter: var(--glass-blur);
+
+    border: 1px solid var(--glass-border);
+
+    border-radius: var(--radius-md);
+
+    transition:
+
+        transform var(--transition-fast),
+
+        box-shadow var(--transition-fast);
+
+}
+
+.timeline-content:hover {
+
+    transform: translateY(-2px);
+
+    box-shadow: var(--shadow-md);
+
+}
+
+/* ============================================================
+   Timeline Header
+   ============================================================ */
+
+.timeline-header {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--space-2);
+
+    margin-bottom: var(--space-2);
+
+}
+
+.timeline-icon {
+
+    font-size: 1rem;
+
+}
+
+.timeline-message {
+
+    color: var(--text-primary);
+
+    line-height: var(--line-height-md);
+
+}
+
+.timeline-date {
+
+    display: block;
+
+    margin-top: var(--space-2);
+
+    color: var(--text-muted);
+
+    font-size: var(--font-xs);
+
+}
+
+/* ============================================================
+   Empty
+   ============================================================ */
+
+.timeline-empty {
+
+    padding: var(--space-6);
+
+    text-align: center;
+
+    color: var(--text-muted);
+
+    border: 1px dashed var(--border-light);
+
+    border-radius: var(--radius-md);
+
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width:768px){
+
+    .chart-svg-container{
+
+        min-height:220px;
+
+    }
+
+    .timeline-container{
+
+        padding-left:var(--space-5);
+
+    }
+
+}
