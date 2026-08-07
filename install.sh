@@ -26,6 +26,7 @@ LOG_DIR="/var/log/sysguardian"
 
 SRC_FILE="${PROJECT_ROOT}/src/sysguardian"
 CONFIG_FILE="${PROJECT_ROOT}/config/sysguardian.conf"
+PRINTERS_CONFIG_FILE="${PROJECT_ROOT}/config/printers.conf"
 
 ############################################
 # Erros
@@ -52,6 +53,7 @@ check_project() {
     local required=(
         "$SRC_FILE"
         "$CONFIG_FILE"
+        "$PRINTERS_CONFIG_FILE"
         "$PROJECT_ROOT/modules"
         "$PROJECT_ROOT/lib"
         "$PROJECT_ROOT/templates"
@@ -172,6 +174,18 @@ install_config() {
 
     fi
 
+    if [[ ! -f "$CONFIG_DIR/printers.conf" ]]; then
+
+        cp "$PRINTERS_CONFIG_FILE" "$CONFIG_DIR/"
+
+        ok "Configuração de impressoras instalada."
+
+    else
+
+        warn "Configuração de impressoras existente preservada."
+
+    fi
+
 }
 
 ############################################
@@ -201,6 +215,7 @@ set_permissions() {
     chmod -R 755 "$DATA_DIR"
 
     chmod 644 "$CONFIG_DIR/sysguardian.conf"
+    chmod 644 "$CONFIG_DIR/printers.conf"
 
     ok "Permissões configuradas."
 

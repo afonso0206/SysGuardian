@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR" data-theme="dark">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="description"
+        content="SysGuardian Executive Dashboard">
+
+    <meta
+        name="theme-color"
+        content="#0b0f19">
+
+    <meta
+        name="color-scheme"
+        content="dark light">
+
+
+    <title>
+
+        SysGuardian • Executive Dashboard
+
+    </title>
+
+    <link
+        rel="manifest"
+        href="manifest.json">
+
+    <link
+        rel="icon"
+        href="favicon.ico"
+        type="image/x-icon">
+
+    <!-- =======================================================
+         CSS
+         ======================================================= -->
+
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/header.css">
+    <link rel="stylesheet" href="css/cards.css">
+    <link rel="stylesheet" href="css/gauge.css">
+    <link rel="stylesheet" href="css/alerts.css">
+    <link rel="stylesheet" href="css/tables.css">
+    <link rel="stylesheet" href="css/charts.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/dark.css">
+    <link rel="stylesheet" href="css/responsive.css">
+
+</head>
+
+<body>
+
+<div class="app-container">
+
+    <!-- =======================================================
+         SIDEBAR
+         ======================================================= -->
+
+    <aside
+
+        id="mainSidebar"
+
+        class="sidebar"
+
+        aria-label="Menu Principal"
+
+    >
+
+        <!-- Brand -->
+
+        <div class="sidebar-brand">
+
+            <svg
+
+                class="sidebar-logo-svg"
+
+                viewBox="0 0 24 24"
+
+                fill="none"
+
+                stroke="#3b82f6"
+
+                stroke-width="2"
+
+                aria-hidden="true"
+
+            >
+
+                <path
+                    d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+
+            </svg>
+
+            <span class="sidebar-brand-text">
+
+                SysGuardian
+
+            </span>
+
+        </div>
+
+        <!-- Navigation -->
+
+        <nav
+
+            class="sidebar-nav"
+
+            aria-label="Navegação Principal"
+
+        >
+
+            <!-- Overview -->
+
+            <a
+
+                class="nav-item active"
+
+                data-route="overview"
+
+                href="#overview"
+
+                aria-current="page"
+
+            >
+
+                <svg
+
+                    class="nav-icon"
+
+                    viewBox="0 0 24 24"
+
+                    fill="none"
+
+                    stroke="currentColor"
+
+                    stroke-width="2"
+
+                    aria-hidden="true"
+
+                >
+
+                    <rect
+                        x="3"
+                        y="3"
+                        width="7"
+                        height="7"/>
+
+                    <rect
+                        x="14"
+                        y="3"
+                        width="7"
+                        height="7"/>
+
+                    <rect
+                        x="14"
+                        y="14"
+                        width="7"
+                        height="7"/>
+
+                    <rect
+                        x="3"
+                        y="14"
+                        width="7"
+                        height="7"/>
+
+                </svg>
+
+                <span class="nav-label">
+
+                    Visão Geral
+
+                </span>
+
+            </a>
+
+            <!-- Alerts -->
+
+            <a
+
+                class="nav-item"
+
+                data-route="alerts"
+
+                href="#alerts"
+
+            >
+
+                <svg
+
+                    class="nav-icon"
+
+                    viewBox="0 0 24 24"
+
+                    fill="none"
+
+                    stroke="currentColor"
+
+                    stroke-width="2"
+
+                    aria-hidden="true"
+
+                >
+
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+
+                    <line
+                        x1="12"
+                        y1="9"
+                        x2="12"
+                        y2="13"/>
+
+                    <line
+                        x1="12"
+                        y1="17"
+                        x2="12.01"
+                        y2="17"/>
+
+                </svg>
+
+                <span class="nav-label">
+
+                    Alertas
+
+                </span>
+
+            </a>
+
+            <!-- History -->
+
+            <a
+
+                class="nav-item"
+
+                data-route="history"
+
+                href="#history"
+
+            >
+
+                <svg
+
+                    class="nav-icon"
+
+                    viewBox="0 0 24 24"
+
+                    fill="none"
+
+                    stroke="currentColor"
+
+                    stroke-width="2"
+
+                    aria-hidden="true"
+
+                >
+
+                    <circle
+                        cx="12"
+                        cy="12"
+                        r="10"/>
+
+                    <polyline
+                        points="12 6 12 12 16 14"/>
+
+                </svg>
+
+                <span class="nav-label">
+
+                    Histórico
+
+                </span>
+
+            </a>
+
+            <!-- Printers -->
+
+            <a
+
+                class="nav-item"
+
+                data-route="printers"
+
+                href="#printers"
+
+            >
+
+                <span class="nav-label">
+
+                    Impressoras
+
+                </span>
+
+            </a>
+
+            <!-- Settings -->
+
+            <a
+
+                class="nav-item"
+
+                data-route="settings"
+
+                href="#settings"
+
+            >
+
+                <svg
+
+                    class="nav-icon"
+
+                    viewBox="0 0 24 24"
+
+                    fill="none"
+
+                    stroke="currentColor"
+
+                    stroke-width="2"
+
+                    aria-hidden="true"
+
+                >
+
+                    <circle
+                        cx="12"
+                        cy="12"
+                        r="3"/>
+
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+
+                </svg>
+
+                <span class="nav-label">
+
+                    Configurações
+
+                </span>
+
+            </a>
+
+        </nav>
+
+    </aside>
+
+    <!-- =======================================================
+         MAIN WRAPPER
+         ======================================================= -->
+
+    <div class="main-wrapper">
+          <!-- Header Topbar -->
+          <!-- =======================================================
+             HEADER
+             ======================================================= -->
+
+        <header class="top-header">
+
+            <div class="header-left">
+
+                <button
+
+                    id="sidebarToggleBtn"
+
+                    class="sidebar-toggle-btn"
+
+                    aria-label="Alternar menu lateral"
+
+                    aria-controls="mainSidebar"
+
+                    aria-expanded="true"
+
+                >
+
+                    <svg
+
+                        width="20"
+
+                        height="20"
+
+                        viewBox="0 0 24 24"
+
+                        fill="none"
+
+                        stroke="currentColor"
+
+                        stroke-width="2"
+
+                        aria-hidden="true"
+
+                    >
+
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+
+                    </svg>
+
+                </button>
+
+                <div class="meta-info-strip">
+
+                    <span class="meta-item">
+
+                        Host
+
+                        <strong id="headerHostname">
+
+                            --
+
+                        </strong>
+
+                    </span>
+
+                    <span class="meta-item">
+
+                        Versão
+
+                        <strong id="headerVersion">
+
+                            --
+
+                        </strong>
+
+                    </span>
+
+                    <span class="meta-item">
+
+                        Auditoria
+
+                        <strong id="headerDate">
+
+                            --
+
+                        </strong>
+
+                    </span>
+
+                </div>
+
+            </div>
+
+            <div class="header-right">
+
+                <span class="meta-item">
+
+                    Última atualização
+
+                    <strong id="headerLastUpdate">
+
+                        --
+
+                    </strong>
+
+                </span>
+
+                <button
+
+                    id="btnManualRefresh"
+
+                    class="btn-refresh"
+
+                    type="button"
+
+                >
+
+                    <svg
+
+                        width="14"
+
+                        height="14"
+
+                        viewBox="0 0 24 24"
+
+                        fill="none"
+
+                        stroke="currentColor"
+
+                        stroke-width="2"
+
+                        aria-hidden="true"
+
+                    >
+
+                        <polyline
+                            points="23 4 23 10 17 10"/>
+
+                        <path
+                            d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+
+                    </svg>
+
+                    Atualizar
+
+                </button>
+
+            </div>
+
+        </header>
+
+        <!-- =======================================================
+             MAIN
+             ======================================================= -->
+
+        <main
+
+            class="content-area"
+
+            role="main"
+
+        >
+
+            <!-- ===================================================
+                 OVERVIEW
+                 =================================================== -->
+
+            <section
+
+                id="view-overview"
+
+                class="view-page active"
+
+                aria-labelledby="overview-title"
+
+            >
+
+                <header class="section-header">
+
+                    <h1
+
+                        id="overview-title"
+
+                        class="section-title"
+
+                    >
+
+                        Visão Geral
+
+                    </h1>
+
+                </header>
+
+                <div class="grid-dashboard-top">
+
+                    <!-- Gauge -->
+
+                    <section class="gauge-panel">
+
+                        <h2 class="gauge-panel-title">
+
+                            Pontuação Geral de Saúde
+
+                        </h2>
+
+                        <div class="gauge-svg-wrapper">
+
+                            <div
+
+                                id="gaugeContainer"
+
+                                aria-live="polite"
+
+                            >
+
+                                <div class="loading">
+
+                                    Carregando...
+
+                                </div>
+
+                            </div>
+
+                            <div class="gauge-center-text">
+
+                                <span
+
+                                    id="overallScoreValue"
+
+                                    class="gauge-value"
+
+                                >
+
+                                    0%
+
+                                </span>
+
+                                <span
+
+                                    id="overallScoreClassification"
+
+                                    class="gauge-class"
+
+                                >
+
+                                    --
+
+                                </span>
+
+                            </div>
+
+                        </div>
+
+                    </section>
+
+                    <!-- Charts -->
+
+                    <div class="grid-charts-two">
+
+                        <section class="chart-card-wrapper">
+
+                            <h2 class="chart-card-title">
+
+                                Métricas por Categoria
+
+                            </h2>
+
+                            <div
+
+                                id="chartRadarContainer"
+
+                                class="chart-svg-container"
+
+                            ></div>
+
+                        </section>
+
+                        <section class="chart-card-wrapper">
+
+                            <h2 class="chart-card-title">
+
+                                Distribuição dos Alertas
+
+                            </h2>
+
+                            <div
+
+                                id="chartDonutContainer"
+
+                                class="chart-svg-container"
+
+                            ></div>
+
+                        </section>
+
+                    </div>
+
+                </div>
+<header class="section-header">
+
+    <h2 class="section-title">
+
+        Central de Alertas
+
+    </h2>
+
+</header>
+
+<section
+
+    id="overviewAlertsContainer"
+
+    class="alerts-wrapper"
+
+    aria-live="polite"
+
+></section>
+
+<header class="section-header">
+
+    <h2 class="section-title">
+
+        Subsistemas Auditados
+
+    </h2>
+
+</header>
+
+<section
+
+    id="cardsContainer"
+
+    class="cards-grid"
+
+    aria-live="polite"
+
+></section>
+
+</section>
+            <!-- ===================================================
+                 ALERTS
+                 =================================================== -->
+
+            <section
+
+                id="view-alerts"
+
+                class="view-page"
+
+                aria-labelledby="alerts-title"
+
+            >
+
+                <header class="section-header">
+
+                    <h1
+
+                        id="alerts-title"
+
+                        class="section-title"
+
+                    >
+
+                        Central Unificada de Alertas
+
+                    </h1>
+
+                </header>
+
+                <section
+
+                    id="fullAlertsContainer"
+
+                    class="alerts-wrapper"
+
+                    aria-live="polite"
+
+                    role="status"
+
+                ></section>
+
+            </section>
+
+            <!-- ===================================================
+                 HISTORY
+                 =================================================== -->
+
+            <section
+
+                id="view-history"
+
+                class="view-page"
+
+                aria-labelledby="history-title"
+
+            >
+
+                <header class="section-header">
+
+                    <h1
+
+                        id="history-title"
+
+                        class="section-title"
+
+                    >
+
+                        Linha do Tempo
+
+                    </h1>
+
+                </header>
+
+                <section
+
+                    id="historyTimelineContainer"
+
+                    aria-live="polite"
+
+                ></section>
+
+            </section>
+
+            <!-- ===================================================
+                 PRINTERS
+                 =================================================== -->
+
+            <section
+
+                id="view-printers"
+
+                class="view-page"
+
+                aria-labelledby="printers-title"
+
+            >
+
+                <header class="section-header">
+
+                    <h1
+
+                        id="printers-title"
+
+                        class="section-title"
+
+                    >
+
+                        Impressoras
+
+                    </h1>
+
+                </header>
+
+                <section
+
+                    id="printersContainer"
+
+                    class="alerts-wrapper"
+
+                    aria-live="polite"
+
+                ></section>
+
+            </section>
+
+            <!-- ===================================================
+                 SETTINGS
+                 =================================================== -->
+
+            <section
+
+                id="view-settings"
+
+                class="view-page"
+
+                aria-labelledby="settings-title"
+
+            >
+
+                <header class="section-header">
+
+                    <h1
+
+                        id="settings-title"
+
+                        class="section-title"
+
+                    >
+
+                        Configurações
+
+                    </h1>
+
+                </header>
+
+                <section class="chart-card-wrapper settings-card">
+
+                    <div class="settings-row">
+
+                        <label
+
+                            for="settingsThemeSelect"
+
+                        >
+
+                            Tema da Interface
+
+                        </label>
+
+                        <select
+
+                            id="settingsThemeSelect"
+
+                            class="control-select"
+
+                        >
+
+                            <option value="dark">
+
+                                Escuro
+
+                            </option>
+
+                            <option value="light">
+
+                                Claro
+
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                    <div class="settings-row">
+
+                        <label
+
+                            for="settingsRefreshSelect"
+
+                        >
+
+                            Atualização Automática
+
+                        </label>
+
+                        <select
+
+                            id="settingsRefreshSelect"
+
+                            class="control-select"
+
+                        >
+
+                            <option value="0">
+
+                                Desativada
+
+                            </option>
+
+                            <option value="30000">
+
+                                30 segundos
+
+                            </option>
+
+                            <option value="60000">
+
+                                60 segundos
+
+                            </option>
+
+                            <option value="120000">
+
+                                2 minutos
+
+                            </option>
+
+                            <option value="300000">
+
+                                5 minutos
+
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                </section>
+
+            </section>
+
+        </main>
+
+    </div>
+
+</div>
+
+<!-- ===========================================================
+     JavaScript
+     =========================================================== -->
+
+<script
+
+    type="module"
+
+    src="js/main.js"
+
+></script>
+
+</body>
+
+</html>

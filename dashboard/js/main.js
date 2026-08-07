@@ -9,6 +9,7 @@ import { AlertsComponent } from './alerts.js';
 import { ChartsComponent } from './charts.js';
 import { HistoryComponent } from './history.js';
 import { SettingsComponent } from './settings.js';
+import { PrintersComponent } from './printers.js';
 
 class App {
     #abortController = null;
@@ -33,6 +34,7 @@ class App {
             alerts: null,
             charts: null,
             history: null,
+            printers: null,
             settings: null,
             router: null
         };
@@ -43,6 +45,7 @@ class App {
             'overview': () => this.renderOverview(),
             'alerts': () => this.renderAlerts(),
             'history': () => this.renderHistory(),
+            'printers': () => this.renderPrinters(),
             'settings': () => {}
         };
     }
@@ -58,6 +61,7 @@ class App {
                 'overview': () => this.onRouteChange('overview'),
                 'alerts': () => this.onRouteChange('alerts'),
                 'history': () => this.onRouteChange('history'),
+                'printers': () => this.onRouteChange('printers'),
                 'settings': () => this.onRouteChange('settings')
             };
 
@@ -86,6 +90,7 @@ class App {
         this.modules.alerts = new AlertsComponent();
         this.modules.charts = new ChartsComponent();
         this.modules.history = new HistoryComponent();
+        this.modules.printers = new PrintersComponent();
 
         this.modules.settings = new SettingsComponent(
             this.modules.theme, 
@@ -228,6 +233,19 @@ class App {
             this.modules.history.renderTimeline('historyTimelineContainer', this.state.report.entries);
         } catch (error) {
             this.handleError('Erro ao renderizar histórico', error);
+        }
+    }
+
+    renderPrinters() {
+        if (!this.state.report) return;
+
+        try {
+            this.modules.printers.render(
+                'printersContainer',
+                this.state.report.entries
+            );
+        } catch (error) {
+            this.handleError('Erro ao renderizar tela de impressoras', error);
         }
     }
 
