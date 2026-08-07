@@ -156,7 +156,6 @@ SysGuardian/
 ├── modules/
 ├── lib/
 ├── docs/
-├── templates/
 ├── tests/
 ├── scripts/
 ├── packaging/

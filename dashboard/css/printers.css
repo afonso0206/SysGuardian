@@ -1,0 +1,184 @@
+.printers-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.printer-summary-card,
+.printer-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    color: var(--text-primary);
+}
+
+.printer-summary-card {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    padding: 1rem;
+    transition: var(--transition-normal);
+}
+
+.printer-summary-card:hover,
+.printer-card:hover {
+    border-color: var(--color-bom);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.printer-summary-label,
+.printer-last-collection {
+    color: var(--text-secondary);
+    font-size: .78rem;
+}
+
+.printer-summary-value {
+    color: var(--text-primary);
+    font-size: 1.35rem;
+}
+
+.printers-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+.printer-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+    padding: 1.25rem;
+    transition: var(--transition-normal);
+}
+
+.printer-card-header,
+.printer-progress-heading {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: .75rem;
+}
+
+.printer-card-header h3 {
+    color: var(--text-primary);
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+}
+
+.printer-status-badge {
+    border-radius: 999px;
+    flex: 0 0 auto;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    padding: .3rem .55rem;
+}
+
+.printer-status-badge.printer-status-online {
+    background: color-mix(in srgb, var(--level-ok) 18%, transparent);
+    color: var(--level-ok);
+}
+
+.printer-status-badge.printer-status-warning {
+    background: color-mix(in srgb, var(--level-warn) 18%, transparent);
+    color: var(--level-warn);
+}
+
+.printer-status-badge.printer-status-offline {
+    background: color-mix(in srgb, var(--level-error) 18%, transparent);
+    color: var(--level-error);
+}
+
+.printer-status-badge.printer-status-unknown {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+
+.printer-identity,
+.printer-metrics {
+    display: grid;
+    gap: .45rem .75rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    margin: 0;
+}
+
+.printer-identity dt,
+.printer-metrics dt {
+    color: var(--text-secondary);
+    font-size: .76rem;
+}
+
+.printer-identity dd,
+.printer-metrics dd {
+    color: var(--text-primary);
+    font-size: .8rem;
+    margin: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+.printer-progress {
+    display: grid;
+    gap: .4rem;
+}
+
+.printer-progress-heading {
+    color: var(--text-secondary);
+    font-size: .76rem;
+}
+
+.printer-progress-heading span {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.printer-progress-track {
+    background: var(--border-color);
+    border-radius: 999px;
+    height: 8px;
+    overflow: hidden;
+}
+
+.printer-progress-fill {
+    background: var(--color-bom);
+    border-radius: inherit;
+    height: 100%;
+    transition: width .35s ease;
+}
+
+.printer-last-collection {
+    border-top: 1px solid var(--border-color);
+    margin-top: auto;
+    padding-top: .75rem;
+}
+
+.printers-empty {
+    color: var(--text-secondary);
+    grid-column: 1 / -1;
+    padding: 1rem;
+}
+
+@media (max-width: 1200px) {
+    .printers-summary,
+    .printers-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .printers-summary,
+    .printers-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .printers-summary,
+    .printers-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

@@ -56,7 +56,6 @@ check_project() {
         "$PRINTERS_CONFIG_FILE"
         "$PROJECT_ROOT/modules"
         "$PROJECT_ROOT/lib"
-        "$PROJECT_ROOT/templates"
     )
 
     for item in "${required[@]}"; do
@@ -146,7 +145,6 @@ install_files() {
 
     cp -r "$PROJECT_ROOT/modules" "$DATA_DIR/"
     cp -r "$PROJECT_ROOT/lib" "$DATA_DIR/"
-    cp -r "$PROJECT_ROOT/templates" "$DATA_DIR/"
 
     cp "$PROJECT_ROOT/README.md" "$DATA_DIR/"
     cp "$PROJECT_ROOT/LICENSE" "$DATA_DIR/"

@@ -94,7 +94,6 @@ remove_program_files() {
         "$DATA_DIR/sysguardian"
         "$DATA_DIR/modules"
         "$DATA_DIR/lib"
-        "$DATA_DIR/templates"
         "$DATA_DIR/README.md"
         "$DATA_DIR/LICENSE"
         "$DATA_DIR/VERSION"
