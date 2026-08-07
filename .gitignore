@@ -1,6 +1,7 @@
 # Relatórios gerados
 *.pdf
 *.html
+!dashboard/index.html
 *.txt
 *.log
 

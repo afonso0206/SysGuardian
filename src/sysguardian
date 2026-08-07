@@ -99,6 +99,9 @@ source "${MODULE_DIR}/backup.sh"
 # shellcheck disable=SC1091
 source "${MODULE_DIR}/logs.sh"
 
+# shellcheck disable=SC1091
+source "${MODULE_DIR}/printers.sh"
+
 readonly TMP_DIR="/tmp/sysguardian"
 
 readonly LOG_FILE="${REPORT_DIR}/diagnostic_${TIMESTAMP}.log"
@@ -120,7 +123,7 @@ declare -A CMD_CACHE
 declare -A CATEGORY_SCORES
 declare -a REPORT_DATA
 
-for cat in Hardware CPU Memory Disks SMART Network System Security Backup Docker Apache PHP MySQL LVM TRIM Logs; do
+for cat in Hardware CPU Memory Disks SMART Network System Security Backup Docker Apache PHP MySQL LVM TRIM Logs Printers; do
     CATEGORY_SCORES[$cat]=100
 done
 
@@ -752,6 +755,40 @@ else
         score_sub "Network" 10
 
     fi
+}
+
+check_printers() {
+    log_entry "Printers" "HEADER" "Impressoras"
+
+    collect_printers
+
+    if [[ "$PRINTER_COUNT" -eq 0 ]]; then
+        log_entry "Printers" "INFO" "Nenhuma impressora configurada"
+        return
+    fi
+
+    log_entry "Printers" "INFO" "Impressoras configuradas: $PRINTER_COUNT"
+
+    local index
+    for ((index = 0; index < PRINTER_COUNT; index++)); do
+        local name="${PRINTER_NAMES[$index]}"
+        local ip="${PRINTER_IPS[$index]}"
+        local status="${PRINTER_STATUSES[$index]}"
+        local response_time="${PRINTER_RESPONSE_TIMES[$index]}"
+        local toner_black="${PRINTER_TONER_BLACK[$index]}"
+
+        if [[ "$status" == "online" ]]; then
+            log_entry "Printers" "OK" "$name ($ip) online (${response_time}ms)"
+
+            if [[ "$toner_black" -ge 0 && "$toner_black" -le 10 ]]; then
+                log_entry "Printers" "WARN" "Toner preto crítico em $name (${toner_black}%)"
+                score_sub "Printers" 10
+            fi
+        else
+            log_entry "Printers" "ERROR" "$name ($ip) offline"
+            score_sub "Printers" 20
+        fi
+    done
 }
 
 check_services_and_security() {
@@ -1515,6 +1552,7 @@ main() {
     check_disks_and_lvm
     check_smart
     check_network
+    check_printers
     check_services_and_security
     check_backup
     check_logs
