@@ -29,6 +29,7 @@ BIN_DIR="/usr/local/bin"
 DATA_DIR="/usr/share/sysguardian"
 CONFIG_DIR="/etc/sysguardian"
 LOG_DIR="/var/log/sysguardian"
+SYSTEMD_DIR="/etc/systemd/system"
 
 CONFIG_FILE="$CONFIG_DIR/sysguardian.conf"
 
@@ -79,6 +80,26 @@ remove_launcher() {
     else
         warn "Launcher '$BIN_DIR/$PROGRAM_CMD' não encontrado."
     fi
+
+}
+
+############################################
+# Remover unidades systemd
+############################################
+
+remove_systemd_units() {
+
+    info "Removendo unidades systemd..."
+
+    systemctl disable --now sysguardian.timer 2>/dev/null || true
+
+    rm -f \
+        "$SYSTEMD_DIR/sysguardian.service" \
+        "$SYSTEMD_DIR/sysguardian.timer"
+
+    systemctl daemon-reload
+
+    ok "Unidades systemd removidas."
 
 }
 
@@ -243,6 +264,8 @@ main() {
     ok "Permissões de administrador confirmadas."
 
     check_installation
+
+    remove_systemd_units
 
     remove_launcher
 

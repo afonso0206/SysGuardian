@@ -23,10 +23,13 @@ BIN_DIR="/usr/local/bin"
 DATA_DIR="/usr/share/sysguardian"
 CONFIG_DIR="/etc/sysguardian"
 LOG_DIR="/var/log/sysguardian"
+SYSTEMD_DIR="/etc/systemd/system"
 
 SRC_FILE="${PROJECT_ROOT}/src/sysguardian"
 CONFIG_FILE="${PROJECT_ROOT}/config/sysguardian.conf"
 PRINTERS_CONFIG_FILE="${PROJECT_ROOT}/config/printers.conf"
+SERVICE_FILE="${PROJECT_ROOT}/packaging/systemd/sysguardian.service"
+TIMER_FILE="${PROJECT_ROOT}/packaging/systemd/sysguardian.timer"
 
 ############################################
 # Erros
@@ -56,6 +59,8 @@ check_project() {
         "$PRINTERS_CONFIG_FILE"
         "$PROJECT_ROOT/modules"
         "$PROJECT_ROOT/lib"
+        "$SERVICE_FILE"
+        "$TIMER_FILE"
     )
 
     for item in "${required[@]}"; do
@@ -187,6 +192,31 @@ install_config() {
 }
 
 ############################################
+# Instalar unidades systemd
+############################################
+
+install_systemd_units() {
+
+    info "Instalando unidades systemd..."
+
+    copy_file "$SERVICE_FILE" "$SYSTEMD_DIR/sysguardian.service"
+    copy_file "$TIMER_FILE" "$SYSTEMD_DIR/sysguardian.timer"
+
+    chmod 644 \
+        "$SYSTEMD_DIR/sysguardian.service" \
+        "$SYSTEMD_DIR/sysguardian.timer"
+
+    systemctl daemon-reload
+    systemctl enable --now sysguardian.timer
+
+    systemctl is-active --quiet sysguardian.timer || \
+        die "O timer sysguardian.timer não ficou ativo."
+
+    ok "Timer sysguardian.timer ativo."
+
+}
+
+############################################
 # Criar comando
 ############################################
 
@@ -292,6 +322,8 @@ main() {
     install_config
 
     create_launcher
+
+    install_systemd_units
 
     set_permissions
 

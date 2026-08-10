@@ -1,0 +1,13 @@
+[Unit]
+Description=SysGuardian scheduled diagnostics
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+OnCalendar=*-*-* 19:00:00
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=30s
+Unit=sysguardian.service
+
+[Install]
+WantedBy=timers.target
