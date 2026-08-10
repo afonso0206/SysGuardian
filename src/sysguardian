@@ -1469,6 +1469,65 @@ generate_json_report() {
     local classification
     classification=$(get_classification "$final_score")
 
+    local generated_at
+    generated_at=$(date --iso-8601=seconds)
+
+    local printer_warnings=0
+    local printer_index printer_status printer_toner_black
+
+    for ((printer_index = 0; printer_index < PRINTER_COUNT; printer_index++)); do
+        printer_status="${PRINTER_STATUSES[$printer_index]:-}"
+        printer_toner_black="${PRINTER_TONER_BLACK[$printer_index]:--1}"
+
+        if [[ "$printer_status" == "online" && "$printer_toner_black" =~ ^[0-9]+$ && \
+              "$printer_toner_black" -le 10 ]]; then
+            ((printer_warnings += 1))
+        fi
+    done
+
+    json_escape() {
+        local value="$1"
+        value="${value//\\/\\\\}"
+        value="${value//\"/\\\"}"
+        value="${value//$'\n'/\\n}"
+        value="${value//$'\r'/\\r}"
+        value="${value//$'\t'/\\t}"
+        printf '%s' "$value"
+    }
+
+    json_string_or_null() {
+        local value="${1:-}"
+
+        case "$value" in
+            ""|"N/A"|"None"|-1)
+                printf 'null'
+                ;;
+            *)
+                printf '"%s"' "$(json_escape "$value")"
+                ;;
+        esac
+    }
+
+    json_number_or_null() {
+        local value="${1:-}"
+
+        if [[ "$value" =~ ^[0-9]+$ ]]; then
+            printf '%s' "$value"
+        else
+            printf 'null'
+        fi
+    }
+
+    json_percent_or_null() {
+        local value="${1:-}"
+
+        if [[ "$value" =~ ^[0-9]+$ && "$value" -le 100 ]]; then
+            printf '%s' "$value"
+        else
+            printf 'null'
+        fi
+    }
+
     {
 
         echo "{"
@@ -1522,7 +1581,64 @@ generate_json_report() {
         done
 
         echo
-        echo "  ]"
+        echo "  ],"
+
+        echo "  \"printers\": {"
+        echo "    \"summary\": {"
+        echo "      \"total\": $PRINTER_COUNT,"
+        echo "      \"online\": $PRINTER_ONLINE_COUNT,"
+        echo "      \"offline\": $PRINTER_OFFLINE_COUNT,"
+        echo "      \"warnings\": $printer_warnings,"
+        printf '      "generated_at": "%s"\n' "$(json_escape "$generated_at")"
+        echo "    },"
+        echo "    \"devices\": ["
+
+        first=1
+
+        for ((printer_index = 0; printer_index < PRINTER_COUNT; printer_index++)); do
+            [[ $first -eq 0 ]] && echo ","
+
+            printf '      {\n'
+            printf '        "name": %s,\n' "$(json_string_or_null "${PRINTER_NAMES[$printer_index]:-}")"
+            printf '        "ip": %s,\n' "$(json_string_or_null "${PRINTER_IPS[$printer_index]:-}")"
+            printf '        "status": %s,\n' "$(json_string_or_null "${PRINTER_STATUSES[$printer_index]:-}")"
+            printf '        "response_ms": %s,\n' "$(json_number_or_null "${PRINTER_RESPONSE_TIMES[$printer_index]:-}")"
+            printf '        "model": %s,\n' "$(json_string_or_null "${PRINTER_MODELS[$printer_index]:-}")"
+            printf '        "firmware": %s,\n' "$(json_string_or_null "${PRINTER_FIRMWARES[$printer_index]:-}")"
+            printf '        "serial": %s,\n' "$(json_string_or_null "${PRINTER_SERIALS[$printer_index]:-}")"
+            printf '        "mac": %s,\n' "$(json_string_or_null "${PRINTER_MACS[$printer_index]:-}")"
+            printf '        "location": %s,\n' "$(json_string_or_null "${PRINTER_LOCATIONS[$printer_index]:-}")"
+            printf '        "description": %s,\n' "$(json_string_or_null "${PRINTER_DESCRIPTIONS[$printer_index]:-}")"
+            printf '        "uptime": %s,\n' "$(json_string_or_null "${PRINTER_UPTIMES[$printer_index]:-}")"
+            printf '        "total_pages": %s,\n' "$(json_number_or_null "${PRINTER_TOTAL_PAGES[$printer_index]:-}")"
+            printf '        "toner": {\n'
+            printf '          "black": %s,\n' "$(json_percent_or_null "${PRINTER_TONER_BLACK[$printer_index]:-}")"
+            printf '          "cyan": %s,\n' "$(json_percent_or_null "${PRINTER_TONER_CYAN[$printer_index]:-}")"
+            printf '          "magenta": %s,\n' "$(json_percent_or_null "${PRINTER_TONER_MAGENTA[$printer_index]:-}")"
+            printf '          "yellow": %s\n' "$(json_percent_or_null "${PRINTER_TONER_YELLOW[$printer_index]:-}")"
+            printf '        },\n'
+            printf '        "paper": {\n'
+            printf '          "percent": %s\n' "$(json_percent_or_null "${PRINTER_PAPER_PCT[$printer_index]:-}")"
+            printf '        },\n'
+            printf '        "drum": {\n'
+            printf '          "percent": %s\n' "$(json_percent_or_null "${PRINTER_DRUM[$printer_index]:-}")"
+            printf '        },\n'
+            if [[ -z "${PRINTER_ERRORS[$printer_index]:-}" || \
+                  "${PRINTER_ERRORS[$printer_index]:-}" == "None" || \
+                  "${PRINTER_ERRORS[$printer_index]:-}" == "N/A" ]]; then
+                printf '        "errors": [],\n'
+            else
+                printf '        "errors": ["%s"],\n' "$(json_escape "${PRINTER_ERRORS[$printer_index]}")"
+            fi
+            printf '        "last_collection": "%s"\n' "$(json_escape "$generated_at")"
+            printf '      }'
+
+            first=0
+        done
+
+        echo
+        echo "    ]"
+        echo "  }"
 
         echo "}"
 

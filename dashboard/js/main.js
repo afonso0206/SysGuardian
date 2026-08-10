@@ -132,7 +132,8 @@ class App {
             return {
                 metadata: { score: 0, hostname: 'N/A', version: 'N/A', date: '' },
                 category_scores: {},
-                entries: []
+                entries: [],
+                printers: null
             };
         }
 
@@ -144,7 +145,8 @@ class App {
                 date: data.metadata?.date || ''
             },
             category_scores: (data.category_scores && typeof data.category_scores === 'object') ? data.category_scores : {},
-            entries: Array.isArray(data.entries) ? data.entries : []
+            entries: Array.isArray(data.entries) ? data.entries : [],
+            printers: (data.printers && typeof data.printers === 'object') ? data.printers : null
         };
     }
 
@@ -242,7 +244,8 @@ class App {
         try {
             this.modules.printers.render(
                 'printersContainer',
-                this.state.report.entries
+                this.state.report.entries,
+                this.state.report.printers
             );
         } catch (error) {
             this.handleError('Erro ao renderizar tela de impressoras', error);

@@ -36,7 +36,14 @@ export const ReportParser = {
             entries:
                 Array.isArray(report.entries)
                     ? report.entries
-                    : []
+                    : [],
+
+            printers:
+                (report.printers &&
+                 typeof report.printers === 'object' &&
+                 !Array.isArray(report.printers))
+                    ? report.printers
+                    : null
 
         };
 
