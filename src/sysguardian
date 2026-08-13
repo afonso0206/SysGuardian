@@ -716,7 +716,12 @@ check_network() {
 
     gateway="$(network_get_gateway)"
 
-    if network_ping_gateway; then
+    if [[ -z "$gateway" ]]; then
+
+        log_entry "Network" "WARN" \
+            "Gateway padrão não pôde ser determinado"
+
+    elif network_ping_gateway; then
 
         log_entry "Network" "OK" \
             "Gateway $gateway acessível"

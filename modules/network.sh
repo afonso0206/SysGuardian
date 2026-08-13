@@ -97,16 +97,19 @@ network_get_ipv6() {
 
 network_get_gateway() {
 
+    local gateway=""
+
     if command_exists ip; then
 
-        ip route |
-        awk '/default/ {print $3; exit}'
-
-    else
-
-        printf "Desconhecido"
+        gateway="$(
+            ip route 2>/dev/null |
+            awk '/default/ {print $3; exit}' || true
+        )"
 
     fi
+
+    printf '%s' "$gateway"
+    return 0
 
 }
 
